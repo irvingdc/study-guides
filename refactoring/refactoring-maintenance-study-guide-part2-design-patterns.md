@@ -1,6 +1,6 @@
 # Guía de Estudio: Refactorización y Mantenimiento de Software
 ## Parte 2: Design Patterns Esenciales
-### Para Entrevista Senior Software Engineer - Zillow
+### Para Entrevista Senior Software Engineer
 
 ---
 

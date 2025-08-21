@@ -1,7 +1,7 @@
 # System Design Study Guide - Comprehensive Interview Preparation
 
 ## Overview
-This comprehensive study guide covers all essential System Design concepts for senior software engineering interviews at companies like Zillow. The guide progresses from fundamental concepts to complex distributed systems, explaining the "why" behind architectural decisions.
+This comprehensive study guide covers all essential System Design concepts for senior software engineering interviews at major tech companies. The guide progresses from fundamental concepts to complex distributed systems, explaining the "why" behind architectural decisions.
 
 ## Study Structure
 
@@ -72,7 +72,7 @@ This comprehensive study guide covers all essential System Design concepts for s
 - Design a video streaming platform (YouTube/Netflix)
 - Design a ride-sharing system (Uber/Lyft)
 - Design a payment system (Stripe/PayPal)
-- Design a real estate platform (Zillow specific)
+- Design a real estate platform
 - Design a collaborative editing system (Google Docs)
 - Design a distributed file storage (Dropbox)
 

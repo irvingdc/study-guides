@@ -1,6 +1,6 @@
 # Guía de Estudio: Refactorización y Mantenimiento de Software
 ## Parte 10: Preguntas Comunes de Entrevista
-### Para Entrevista Senior Software Engineer - Zillow
+### Para Entrevista Senior Software Engineer
 
 ---
 
@@ -2363,4 +2363,4 @@ La clave es mantener el foco en el código, no en las personas, y buscar el mejo
 - Prepara historias de debugging complejos
 - Conoce herramientas modernas de quality assurance
 
-¡Éxito en tu entrevista con Zillow!
+¡Éxito en tu entrevista técnica!

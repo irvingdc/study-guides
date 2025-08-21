@@ -1,6 +1,6 @@
 # Guía de Estudio: Refactorización y Mantenimiento de Software
 ## Parte 7: TypeScript Avanzado
-### Para Entrevista Senior Software Engineer - Zillow
+### Para Entrevista Senior Software Engineer
 
 ---
 

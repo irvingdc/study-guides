@@ -1,6 +1,6 @@
 # Guía de Estudio: Refactorización y Mantenimiento de Software
 ## Parte 1: Principios SOLID
-### Para Entrevista Senior Software Engineer - Zillow
+### Para Entrevista Senior Software Engineer
 
 ---
 
@@ -2467,4 +2467,4 @@ Los principios SOLID trabajan juntos para crear código mantenible:
 - **ISP** evita dependencias innecesarias
 - **DIP** desacopla los módulos y facilita el testing
 
-Aplicar estos principios requiere práctica, pero los beneficios en mantenibilidad, escalabilidad y calidad del código son enormes. En tu entrevista con Zillow, poder explicar estos principios con ejemplos prácticos y demostrar cuándo y cómo aplicarlos será fundamental para mostrar tu nivel como Senior Software Engineer.
+Aplicar estos principios requiere práctica, pero los beneficios en mantenibilidad, escalabilidad y calidad del código son enormes. En tu entrevista técnica, poder explicar estos principios con ejemplos prácticos y demostrar cuándo y cómo aplicarlos será fundamental para mostrar tu nivel como Senior Software Engineer.

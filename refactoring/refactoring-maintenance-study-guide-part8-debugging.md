@@ -1,6 +1,6 @@
 # Guía de Estudio: Refactorización y Mantenimiento de Software
 ## Parte 8: Debugging y Troubleshooting
-### Para Entrevista Senior Software Engineer - Zillow
+### Para Entrevista Senior Software Engineer
 
 ---
 

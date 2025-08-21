@@ -1,6 +1,6 @@
 # Software Engineering Study Guides
 
-A comprehensive collection of study materials for senior software engineers preparing for technical interviews at major tech companies like Zillow, focusing on two critical areas: **Software Refactoring & Maintenance** and **System Design**.
+A comprehensive collection of study materials for senior software engineers preparing for technical interviews at major tech companies, focusing on two critical areas: **Software Refactoring & Maintenance** and **System Design**.
 
 ## 📚 Repository Overview
 
@@ -116,7 +116,7 @@ This repository contains detailed study guides covering advanced software engine
 - Video streaming platform (Netflix/YouTube)
 - Ride-sharing system (Uber/Lyft)
 - Payment processing system
-- Real estate platform (Zillow-specific)
+- Real estate platform
 - Collaborative editing system
 - Distributed file storage
 
@@ -195,7 +195,7 @@ While these are personal study materials, suggestions for improvements are welco
 ## 📝 Notes
 
 - **Language Mix**: Refactoring guides are primarily in Spanish, System Design guides are in English
-- **Company Focus**: Examples and case studies include Zillow-specific scenarios
+- **Industry Examples**: Examples and case studies include real-world scenarios from various industries
 - **Level**: Designed for senior-level positions requiring architectural decision-making
 
 ---

@@ -1089,7 +1089,7 @@ class PaymentSystem:
                         lock.release()
 ```
 
-## 6. Design a Real Estate Platform (Zillow Specific)
+## 6. Design a Real Estate Platform
 
 ### Requirements
 
@@ -1111,7 +1111,7 @@ class PaymentSystem:
 ### Property Search and Indexing
 
 ```python
-class ZillowSearchService:
+class RealEstateSearchService:
     def __init__(self):
         self.elasticsearch = Elasticsearch()
         
