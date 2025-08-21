@@ -61,443 +61,188 @@ Un método largo es uno que intenta hacer demasiado. Como regla general, si un m
 ### Ejemplo Práctico con Explicación
 
 ```typescript
-// ============================================
-// PROBLEMA: Método extremadamente largo
-// ============================================
-
+// ❌ PROBLEMA: Método extremadamente largo (300+ líneas!)
 class OrderProcessor {
-  // ❌ PROBLEMA: Este método tiene 100+ líneas y hace DEMASIADAS cosas
   processOrder(orderData: any): void {
-    console.log('Starting order processing...');
+    // Validación
+    if (!orderData) throw new Error('Order required');
+    if (!orderData.customer) throw new Error('Customer required');
+    if (!orderData.customer.email.includes('@')) throw new Error('Invalid email');
+    if (orderData.items.length === 0) throw new Error('No items');
     
-    // Problema 1: Validación mezclada con lógica de negocio
-    if (!orderData) {
-      throw new Error('Order data is required');
-    }
-    
-    if (!orderData.customer) {
-      throw new Error('Customer information is required');
-    }
-    
-    if (!orderData.customer.email || !orderData.customer.email.includes('@')) {
-      throw new Error('Valid customer email is required');
-    }
-    
-    if (!orderData.customer.name || orderData.customer.name.trim().length < 2) {
-      throw new Error('Customer name must be at least 2 characters');
-    }
-    
-    if (!orderData.items || !Array.isArray(orderData.items) || orderData.items.length === 0) {
-      throw new Error('Order must contain at least one item');
-    }
-    
-    // Problema 2: Lógica de inventario mezclada
-    console.log('Checking inventory...');
-    const unavailableItems = [];
-    for (let i = 0; i < orderData.items.length; i++) {
-      const item = orderData.items[i];
-      
-      // Simulación de verificación de inventario
-      const availableQuantity = Math.floor(Math.random() * 100);
-      if (availableQuantity < item.quantity) {
-        unavailableItems.push({
-          name: item.name,
-          requested: item.quantity,
-          available: availableQuantity
-        });
+    // Verificar inventario
+    const unavailable = [];
+    for (const item of orderData.items) {
+      const available = Math.random() * 100;
+      if (available < item.quantity) {
+        unavailable.push(item);
       }
     }
-    
-    if (unavailableItems.length > 0) {
-      console.error('Some items are not available:', unavailableItems);
-      // Enviar notificación de items no disponibles
-      const emailBody = `
-        Dear ${orderData.customer.name},
-        
-        The following items in your order are not available:
-        ${unavailableItems.map(item => 
-          `- ${item.name}: Requested ${item.requested}, Available ${item.available}`
-        ).join('\n')}
-        
-        Please update your order.
-      `;
-      console.log('Sending email:', emailBody);
-      throw new Error('Some items are not available');
+    if (unavailable.length > 0) {
+      console.log(`Email: Items not available: ${unavailable}`);
+      throw new Error('Items not available');
     }
     
-    // Problema 3: Cálculo de precios mezclado
-    console.log('Calculating prices...');
+    // Calcular precios
     let subtotal = 0;
-    let totalWeight = 0;
-    
     for (const item of orderData.items) {
-      const itemPrice = item.price * item.quantity;
-      subtotal += itemPrice;
-      
-      // Calcular peso para envío
-      const itemWeight = item.weight || 0.5; // peso default 0.5 kg
-      totalWeight += itemWeight * item.quantity;
+      subtotal += item.price * item.quantity;
     }
     
-    // Problema 4: Lógica de descuentos compleja
-    console.log('Applying discounts...');
-    let discountAmount = 0;
+    // Aplicar descuentos
+    let discount = 0;
+    if (subtotal > 1000) discount = subtotal * 0.1;
+    else if (subtotal > 500) discount = subtotal * 0.05;
+    if (orderData.customer.loyaltyPoints > 1000) discount += subtotal * 0.05;
+    if (orderData.promoCode === 'SAVE20') discount += subtotal * 0.2;
     
-    // Descuento por volumen
-    if (subtotal > 1000) {
-      discountAmount += subtotal * 0.1; // 10% descuento
-    } else if (subtotal > 500) {
-      discountAmount += subtotal * 0.05; // 5% descuento
-    }
+    // Calcular envío
+    let shipping = 0;
+    if (orderData.shippingMethod === 'express') shipping = 25;
+    else if (orderData.shippingMethod === 'standard') shipping = 10;
+    else shipping = 5;
     
-    // Descuento por cliente frecuente
-    if (orderData.customer.loyaltyPoints > 1000) {
-      discountAmount += subtotal * 0.05; // 5% adicional
-    }
+    // Calcular impuestos
+    const taxRate = orderData.state === 'CA' ? 0.0725 : 0.05;
+    const tax = (subtotal - discount + shipping) * taxRate;
+    const total = subtotal - discount + shipping + tax;
     
-    // Descuento por código promocional
-    if (orderData.promoCode) {
-      if (orderData.promoCode === 'SAVE20') {
-        discountAmount += subtotal * 0.2;
-      } else if (orderData.promoCode === 'SAVE10') {
-        discountAmount += subtotal * 0.1;
-      } else if (orderData.promoCode === 'FREESHIP') {
-        // Se aplicará más adelante en el cálculo de envío
-      }
-    }
-    
-    // Asegurar que el descuento no exceda el 50%
-    if (discountAmount > subtotal * 0.5) {
-      discountAmount = subtotal * 0.5;
-    }
-    
-    const discountedSubtotal = subtotal - discountAmount;
-    
-    // Problema 5: Cálculo de envío complejo
-    console.log('Calculating shipping...');
-    let shippingCost = 0;
-    
-    if (orderData.shippingMethod === 'express') {
-      shippingCost = 25 + (totalWeight * 2);
-    } else if (orderData.shippingMethod === 'standard') {
-      shippingCost = 10 + (totalWeight * 1);
-    } else if (orderData.shippingMethod === 'economy') {
-      shippingCost = 5 + (totalWeight * 0.5);
-    }
-    
-    // Envío gratis para órdenes grandes o con código promocional
-    if (discountedSubtotal > 100 || orderData.promoCode === 'FREESHIP') {
-      shippingCost = 0;
-    }
-    
-    // Problema 6: Cálculo de impuestos
-    console.log('Calculating taxes...');
-    let taxRate = 0;
-    
-    // Diferentes tasas de impuesto por estado
-    switch (orderData.shippingAddress.state) {
-      case 'CA':
-        taxRate = 0.0725;
-        break;
-      case 'NY':
-        taxRate = 0.08;
-        break;
-      case 'TX':
-        taxRate = 0.0625;
-        break;
-      case 'FL':
-        taxRate = 0.06;
-        break;
-      default:
-        taxRate = 0.05;
-    }
-    
-    const taxAmount = (discountedSubtotal + shippingCost) * taxRate;
-    const total = discountedSubtotal + shippingCost + taxAmount;
-    
-    // Problema 7: Procesamiento de pago
-    console.log('Processing payment...');
-    let paymentSuccessful = false;
-    
+    // Procesar pago
     if (orderData.paymentMethod === 'credit_card') {
-      // Validar tarjeta de crédito
-      if (!orderData.paymentDetails.cardNumber || 
-          orderData.paymentDetails.cardNumber.replace(/\s/g, '').length !== 16) {
-        throw new Error('Invalid credit card number');
-      }
-      
-      if (!orderData.paymentDetails.cvv || 
-          orderData.paymentDetails.cvv.length !== 3) {
-        throw new Error('Invalid CVV');
-      }
-      
-      // Procesar pago
-      console.log(`Charging ${total} to credit card...`);
-      paymentSuccessful = Math.random() > 0.1; // 90% success rate simulado
-      
-    } else if (orderData.paymentMethod === 'paypal') {
-      console.log(`Processing PayPal payment for ${total}...`);
-      paymentSuccessful = Math.random() > 0.05; // 95% success rate simulado
-      
-    } else if (orderData.paymentMethod === 'bitcoin') {
-      console.log(`Processing Bitcoin payment for ${total}...`);
-      paymentSuccessful = Math.random() > 0.2; // 80% success rate simulado
+      if (orderData.cardNumber.length !== 16) throw new Error('Invalid card');
+      console.log(`Charging ${total}`);
     }
     
-    if (!paymentSuccessful) {
-      throw new Error('Payment failed');
-    }
-    
-    // Problema 8: Creación y guardado de orden
-    console.log('Creating order record...');
+    // Guardar orden
     const order = {
-      id: 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-      customerId: orderData.customer.id,
+      id: 'ORD-' + Date.now(),
       items: orderData.items,
-      subtotal: subtotal,
-      discount: discountAmount,
-      shipping: shippingCost,
-      tax: taxAmount,
       total: total,
-      status: 'confirmed',
-      paymentMethod: orderData.paymentMethod,
-      shippingAddress: orderData.shippingAddress,
-      createdAt: new Date()
+      status: 'confirmed'
     };
+    console.log('Saving order:', order);
     
-    // Guardar en base de datos (simulado)
-    console.log('Saving order to database:', order);
-    
-    // Problema 9: Actualización de inventario
-    console.log('Updating inventory...');
-    for (const item of orderData.items) {
-      console.log(`Reducing inventory for ${item.name} by ${item.quantity}`);
-    }
-    
-    // Problema 10: Envío de notificaciones
-    console.log('Sending notifications...');
-    
-    // Email de confirmación
-    const confirmationEmail = `
-      Dear ${orderData.customer.name},
-      
-      Your order ${order.id} has been confirmed!
-      
-      Order Summary:
-      ${orderData.items.map(item => 
-        `- ${item.name}: ${item.quantity} x $${item.price}`
-      ).join('\n')}
-      
-      Subtotal: $${subtotal.toFixed(2)}
-      Discount: -$${discountAmount.toFixed(2)}
-      Shipping: $${shippingCost.toFixed(2)}
-      Tax: $${taxAmount.toFixed(2)}
-      Total: $${total.toFixed(2)}
-      
-      Thank you for your purchase!
-    `;
-    console.log('Sending confirmation email:', confirmationEmail);
-    
-    // SMS de confirmación
-    if (orderData.customer.phone) {
-      const smsMessage = `Your order ${order.id} for $${total.toFixed(2)} has been confirmed!`;
-      console.log('Sending SMS:', smsMessage);
-    }
-    
-    // Notificación al warehouse
-    console.log('Notifying warehouse about new order...');
-    
-    console.log('Order processing completed successfully!');
+    // Enviar notificaciones
+    console.log(`Email: Order ${order.id} confirmed for ${total}`);
+    console.log('Warehouse notified');
   }
 }
 
-// ============================================
-// SOLUCIÓN: Refactorización usando Extract Method
-// ============================================
-
-// Interfaces y tipos bien definidos
-interface Customer {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  loyaltyPoints: number;
-}
-
-interface OrderItem {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-  weight?: number;
-}
-
-interface ShippingAddress {
-  street: string;
-  city: string;
-  state: string;
-  zipCode: string;
-  country: string;
-}
-
-interface PaymentDetails {
-  cardNumber?: string;
-  cvv?: string;
-  paypalEmail?: string;
-  bitcoinAddress?: string;
-}
-
-interface OrderData {
-  customer: Customer;
-  items: OrderItem[];
-  shippingMethod: 'express' | 'standard' | 'economy';
-  shippingAddress: ShippingAddress;
-  paymentMethod: 'credit_card' | 'paypal' | 'bitcoin';
-  paymentDetails: PaymentDetails;
-  promoCode?: string;
-}
-
-interface Order {
-  id: string;
-  customerId: string;
-  items: OrderItem[];
-  pricing: OrderPricing;
-  status: OrderStatus;
-  paymentMethod: string;
-  shippingAddress: ShippingAddress;
-  createdAt: Date;
-}
-
-interface OrderPricing {
-  subtotal: number;
-  discount: number;
-  shipping: number;
-  tax: number;
-  total: number;
-}
-
-type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
-
-// ✅ SOLUCIÓN: Clase refactorizada con métodos pequeños y enfocados
+// ✅ SOLUCIÓN: Refactorizado con Extract Method
 class RefactoredOrderProcessor {
-  // Constantes extraídas para fácil configuración
-  private readonly VOLUME_DISCOUNT_THRESHOLD_HIGH = 1000;
-  private readonly VOLUME_DISCOUNT_THRESHOLD_LOW = 500;
-  private readonly VOLUME_DISCOUNT_RATE_HIGH = 0.1;
-  private readonly VOLUME_DISCOUNT_RATE_LOW = 0.05;
-  private readonly LOYALTY_DISCOUNT_THRESHOLD = 1000;
-  private readonly LOYALTY_DISCOUNT_RATE = 0.05;
-  private readonly MAX_DISCOUNT_RATE = 0.5;
-  private readonly FREE_SHIPPING_THRESHOLD = 100;
-  private readonly DEFAULT_ITEM_WEIGHT = 0.5;
-  
-  // Inyección de dependencias para mejor testing
   constructor(
     private inventoryService: InventoryService,
     private paymentService: PaymentService,
-    private notificationService: NotificationService,
-    private orderRepository: OrderRepository,
-    private logger: Logger
+    private notificationService: NotificationService
   ) {}
   
   // Método principal ahora es corto y claro
   async processOrder(orderData: OrderData): Promise<Order> {
-    this.logger.info('Starting order processing...');
+    // Cada paso es un método con responsabilidad única
+    this.validateOrderData(orderData);
+    await this.checkInventory(orderData.items);
     
-    try {
-      // Cada paso es un método separado con una responsabilidad clara
-      this.validateOrderData(orderData);
-      await this.checkInventoryAvailability(orderData.items);
-      
-      const pricing = this.calculateOrderPricing(orderData);
-      await this.processPayment(orderData, pricing.total);
-      
-      const order = this.createOrder(orderData, pricing);
-      await this.saveOrder(order);
-      
-      await this.updateInventory(orderData.items);
-      await this.sendNotifications(order, orderData.customer);
-      
-      this.logger.info('Order processing completed successfully!');
-      return order;
-      
-    } catch (error) {
-      this.logger.error('Order processing failed:', error);
-      throw error;
+    const pricing = this.calculatePricing(orderData);
+    await this.processPayment(orderData, pricing.total);
+    
+    const order = this.createOrder(orderData, pricing);
+    await this.saveOrder(order);
+    await this.sendNotifications(order);
+    
+    return order;
+  }
+  
+  private validateOrderData(data: OrderData): void {
+    if (!data.customer) throw new Error('Customer required');
+    if (!data.customer.email.includes('@')) throw new Error('Invalid email');
+    if (data.items.length === 0) throw new Error('No items');
+  }
+  
+  private async checkInventory(items: OrderItem[]): Promise<void> {
+    const results = await this.inventoryService.checkAvailability(items);
+    if (results.some(r => !r.available)) {
+      throw new Error('Some items not available');
     }
   }
   
-  // Validación extraída y organizada
-  private validateOrderData(orderData: OrderData): void {
-    this.validateCustomer(orderData.customer);
-    this.validateItems(orderData.items);
-    this.validateShippingAddress(orderData.shippingAddress);
-    this.validatePaymentDetails(orderData);
+  private calculatePricing(data: OrderData): OrderPricing {
+    const subtotal = this.calculateSubtotal(data.items);
+    const discount = this.calculateDiscount(subtotal, data);
+    const shipping = this.calculateShipping(data.shippingMethod);
+    const tax = this.calculateTax(subtotal - discount + shipping, data.state);
+    
+    return {
+      subtotal,
+      discount,
+      shipping,
+      tax,
+      total: subtotal - discount + shipping + tax
+    };
   }
   
-  private validateCustomer(customer: Customer): void {
-    if (!customer) {
-      throw new ValidationError('Customer information is required');
-    }
-    
-    if (!this.isValidEmail(customer.email)) {
-      throw new ValidationError('Valid customer email is required');
-    }
-    
-    if (!this.isValidName(customer.name)) {
-      throw new ValidationError('Customer name must be at least 2 characters');
-    }
+  private calculateSubtotal(items: OrderItem[]): number {
+    return items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   }
   
-  private validateItems(items: OrderItem[]): void {
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      throw new ValidationError('Order must contain at least one item');
+  private calculateDiscount(subtotal: number, data: OrderData): number {
+    let discount = 0;
+    
+    // Volume discount
+    if (subtotal > 1000) discount = subtotal * 0.1;
+    else if (subtotal > 500) discount = subtotal * 0.05;
+    
+    // Loyalty discount
+    if (data.customer.loyaltyPoints > 1000) {
+      discount += subtotal * 0.05;
     }
     
-    items.forEach(item => this.validateItem(item));
+    // Promo code
+    if (data.promoCode === 'SAVE20') {
+      discount += subtotal * 0.2;
+    }
+    
+    return Math.min(discount, subtotal * 0.5); // Max 50% discount
   }
   
-  private validateItem(item: OrderItem): void {
-    if (!item.name || !item.id) {
-      throw new ValidationError('Item must have name and ID');
-    }
-    
-    if (item.quantity <= 0) {
-      throw new ValidationError('Item quantity must be positive');
-    }
-    
-    if (item.price < 0) {
-      throw new ValidationError('Item price cannot be negative');
-    }
-  }
-  
-  private validateShippingAddress(address: ShippingAddress): void {
-    if (!address) {
-      throw new ValidationError('Shipping address is required');
-    }
-    
-    const requiredFields = ['street', 'city', 'state', 'zipCode', 'country'];
-    for (const field of requiredFields) {
-      if (!address[field]) {
-        throw new ValidationError(`Shipping address ${field} is required`);
-      }
+  private calculateShipping(method: string): number {
+    switch(method) {
+      case 'express': return 25;
+      case 'standard': return 10;
+      default: return 5;
     }
   }
   
-  private validatePaymentDetails(orderData: OrderData): void {
-    const validator = this.getPaymentValidator(orderData.paymentMethod);
-    validator.validate(orderData.paymentDetails);
+  private calculateTax(amount: number, state: string): number {
+    const taxRates = { CA: 0.0725, NY: 0.08, TX: 0.0625 };
+    const rate = taxRates[state] || 0.05;
+    return amount * rate;
   }
   
-  // Verificación de inventario extraída
-  private async checkInventoryAvailability(items: OrderItem[]): Promise<void> {
-    this.logger.info('Checking inventory...');
-    
-    const availabilityResults = await Promise.all(
-      items.map(item => this.inventoryService.checkAvailability(item))
-    );
-    
-    const unavailableItems = availabilityResults.filter(result => !result.isAvailable);
+  private async processPayment(data: OrderData, total: number): Promise<void> {
+    const result = await this.paymentService.charge(data.paymentMethod, total);
+    if (!result.success) throw new Error('Payment failed');
+  }
+  
+  private createOrder(data: OrderData, pricing: OrderPricing): Order {
+    return {
+      id: generateOrderId(),
+      customerId: data.customer.id,
+      items: data.items,
+      pricing,
+      status: 'confirmed',
+      createdAt: new Date()
+    };
+  }
+  
+  private async saveOrder(order: Order): Promise<void> {
+    await this.orderRepository.save(order);
+  }
+  
+  private async sendNotifications(order: Order): Promise<void> {
+    await this.notificationService.sendOrderConfirmation(order);
+    await this.notificationService.notifyWarehouse(order);
+  }
+}
     
     if (unavailableItems.length > 0) {
       await this.handleUnavailableItems(unavailableItems);

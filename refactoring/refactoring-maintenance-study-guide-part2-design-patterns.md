@@ -59,794 +59,197 @@ El Factory Pattern es un patrón creacional que proporciona una interfaz para cr
 ### Ejemplo Práctico con Explicación
 
 ```typescript
-// ============================================
 // EJEMPLO 1: Simple Factory Pattern
-// ============================================
 
-// Problema: Sistema de notificaciones con múltiples canales
-// Necesitamos crear diferentes tipos de notificaciones basadas en preferencias del usuario
-
-// 1. Definir la interfaz común para todos los productos
+// 1. Interface común
 interface Notification {
   send(message: string, recipient: string): Promise<boolean>;
-  validateRecipient(recipient: string): boolean;
   getType(): string;
-  getCost(): number; // Costo por notificación
-  getDeliveryTime(): string; // Tiempo estimado de entrega
 }
 
-// 2. Implementaciones concretas de diferentes tipos de notificaciones
-
+// 2. Implementaciones concretas
 class EmailNotification implements Notification {
-  private readonly COST_PER_EMAIL = 0.001; // $0.001 por email
-  
   async send(message: string, recipient: string): Promise<boolean> {
-    if (!this.validateRecipient(recipient)) {
-      console.error(`Invalid email address: ${recipient}`);
-      return false;
-    }
-    
-    // Simular envío de email
-    console.log(`📧 Sending email to ${recipient}`);
-    console.log(`Subject: Notification`);
-    console.log(`Body: ${message}`);
-    
-    // Simular latencia de red
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
+    console.log(`Email to ${recipient}: ${message}`);
     return true;
-  }
-  
-  validateRecipient(recipient: string): boolean {
-    // Validación básica de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(recipient);
   }
   
   getType(): string {
     return 'EMAIL';
   }
-  
-  getCost(): number {
-    return this.COST_PER_EMAIL;
-  }
-  
-  getDeliveryTime(): string {
-    return 'Instant to 5 minutes';
-  }
 }
 
 class SMSNotification implements Notification {
-  private readonly COST_PER_SMS = 0.05; // $0.05 por SMS
-  private readonly MAX_LENGTH = 160;
-  
   async send(message: string, recipient: string): Promise<boolean> {
-    if (!this.validateRecipient(recipient)) {
-      console.error(`Invalid phone number: ${recipient}`);
-      return false;
-    }
-    
-    // Truncar mensaje si es muy largo
-    const truncatedMessage = message.length > this.MAX_LENGTH
-      ? message.substring(0, this.MAX_LENGTH - 3) + '...'
-      : message;
-    
-    console.log(`📱 Sending SMS to ${recipient}`);
-    console.log(`Message (${truncatedMessage.length} chars): ${truncatedMessage}`);
-    
-    // Simular latencia de red
-    await new Promise(resolve => setTimeout(resolve, 200));
-    
+    const truncated = message.substring(0, 160);
+    console.log(`SMS to ${recipient}: ${truncated}`);
     return true;
-  }
-  
-  validateRecipient(recipient: string): boolean {
-    // Validación básica de número de teléfono (formato US)
-    const phoneRegex = /^\+?1?\d{10,14}$/;
-    return phoneRegex.test(recipient.replace(/[\s-()]/g, ''));
   }
   
   getType(): string {
     return 'SMS';
   }
-  
-  getCost(): number {
-    return this.COST_PER_SMS;
-  }
-  
-  getDeliveryTime(): string {
-    return 'Usually instant';
-  }
 }
 
 class PushNotification implements Notification {
-  private readonly COST_PER_PUSH = 0.0001; // $0.0001 por push
-  
   async send(message: string, recipient: string): Promise<boolean> {
-    if (!this.validateRecipient(recipient)) {
-      console.error(`Invalid device token: ${recipient}`);
-      return false;
-    }
-    
-    console.log(`🔔 Sending push notification to device ${recipient}`);
-    console.log(`Message: ${message}`);
-    
-    // Simular latencia de red
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
+    console.log(`Push to ${recipient}: ${message}`);
     return true;
-  }
-  
-  validateRecipient(recipient: string): boolean {
-    // Validación básica de token de dispositivo
-    return recipient.length >= 32 && /^[a-zA-Z0-9]+$/.test(recipient);
   }
   
   getType(): string {
     return 'PUSH';
   }
-  
-  getCost(): number {
-    return this.COST_PER_PUSH;
-  }
-  
-  getDeliveryTime(): string {
-    return 'Instant';
-  }
 }
 
-class SlackNotification implements Notification {
-  private readonly COST_PER_MESSAGE = 0.01; // $0.01 por mensaje
-  private webhookUrl: string;
-  
-  constructor(webhookUrl?: string) {
-    this.webhookUrl = webhookUrl || process.env.SLACK_WEBHOOK_URL || '';
-  }
-  
-  async send(message: string, recipient: string): Promise<boolean> {
-    if (!this.validateRecipient(recipient)) {
-      console.error(`Invalid Slack channel: ${recipient}`);
-      return false;
-    }
-    
-    console.log(`💬 Sending Slack message to ${recipient}`);
-    console.log(`Webhook: ${this.webhookUrl}`);
-    console.log(`Message: ${message}`);
-    
-    // Simular llamada a API de Slack
-    await new Promise(resolve => setTimeout(resolve, 150));
-    
-    return true;
-  }
-  
-  validateRecipient(recipient: string): boolean {
-    // Validación de canal de Slack (debe empezar con # o @)
-    return /^[#@].+/.test(recipient);
-  }
-  
-  getType(): string {
-    return 'SLACK';
-  }
-  
-  getCost(): number {
-    return this.COST_PER_MESSAGE;
-  }
-  
-  getDeliveryTime(): string {
-    return 'Usually instant';
-  }
-}
-
-// 3. Simple Factory - Centraliza la lógica de creación
+// 3. Simple Factory
 class NotificationFactory {
-  // Mapa de tipos registrados para hacer la factory extensible
-  private static notificationTypes = new Map<string, () => Notification>();
-  
-  // Registrar tipos por defecto
-  static {
-    this.registerType('email', () => new EmailNotification());
-    this.registerType('sms', () => new SMSNotification());
-    this.registerType('push', () => new PushNotification());
-    this.registerType('slack', () => new SlackNotification());
-  }
-  
-  // Método principal de factory
   static createNotification(type: string): Notification {
-    const creator = this.notificationTypes.get(type.toLowerCase());
-    
-    if (!creator) {
-      throw new Error(`Unknown notification type: ${type}. 
-        Available types: ${Array.from(this.notificationTypes.keys()).join(', ')}`);
+    switch(type) {
+      case 'email':
+        return new EmailNotification();
+      case 'sms':
+        return new SMSNotification();
+      case 'push':
+        return new PushNotification();
+      default:
+        throw new Error(`Unknown type: ${type}`);
     }
-    
-    return creator();
   }
   
-  // Método para crear basado en configuración del usuario
-  static createFromUserPreference(user: User): Notification {
-    // Lógica de negocio para determinar el tipo de notificación
-    if (user.preferences.pushEnabled && user.deviceToken) {
+  // Crear basado en preferencias del usuario
+  static createFromUser(user: User): Notification {
+    if (user.prefersPush) {
       return this.createNotification('push');
-    } else if (user.preferences.smsEnabled && user.phone) {
+    } else if (user.prefersSMS) {
       return this.createNotification('sms');
-    } else if (user.preferences.emailEnabled && user.email) {
-      return this.createNotification('email');
-    } else if (user.preferences.slackEnabled && user.slackChannel) {
-      return this.createNotification('slack');
     }
-    
-    // Fallback a email
     return this.createNotification('email');
   }
-  
-  // Método para crear múltiples notificaciones
-  static createMultiChannel(types: string[]): Notification[] {
-    return types.map(type => this.createNotification(type));
-  }
-  
-  // Permitir registrar nuevos tipos dinámicamente
-  static registerType(type: string, creator: () => Notification): void {
-    this.notificationTypes.set(type.toLowerCase(), creator);
-  }
-  
-  // Obtener información sobre tipos disponibles
-  static getAvailableTypes(): string[] {
-    return Array.from(this.notificationTypes.keys());
-  }
-  
-  // Crear la notificación más económica
-  static createMostEconomical(): Notification {
-    const allTypes = this.getAvailableTypes();
-    let cheapest: Notification | null = null;
-    let lowestCost = Infinity;
-    
-    for (const type of allTypes) {
-      const notification = this.createNotification(type);
-      if (notification.getCost() < lowestCost) {
-        lowestCost = notification.getCost();
-        cheapest = notification;
-      }
-    }
-    
-    return cheapest || this.createNotification('email');
-  }
 }
 
-// ============================================
 // EJEMPLO 2: Factory Method Pattern
-// ============================================
-
-// El Factory Method permite a las subclases decidir qué clase instanciar
 
 // 1. Producto abstracto
 abstract class Document {
   abstract getType(): string;
-  abstract render(): string;
   abstract save(): void;
-  abstract validate(): boolean;
 }
 
 // 2. Productos concretos
 class PDFDocument extends Document {
-  private content: string = '';
-  
-  getType(): string {
-    return 'PDF';
-  }
-  
-  render(): string {
-    return `<PDF>${this.content}</PDF>`;
-  }
-  
-  save(): void {
-    console.log('Saving PDF document...');
-  }
-  
-  validate(): boolean {
-    // Validar estructura PDF
-    return true;
-  }
-  
-  setContent(content: string): void {
-    this.content = content;
-  }
+  getType(): string { return 'PDF'; }
+  save(): void { console.log('Saving PDF'); }
 }
 
 class WordDocument extends Document {
-  private content: string = '';
-  
-  getType(): string {
-    return 'DOCX';
-  }
-  
-  render(): string {
-    return `<DOCX>${this.content}</DOCX>`;
-  }
-  
-  save(): void {
-    console.log('Saving Word document...');
-  }
-  
-  validate(): boolean {
-    // Validar estructura DOCX
-    return true;
-  }
-  
-  setContent(content: string): void {
-    this.content = content;
-  }
-}
-
-class ExcelDocument extends Document {
-  private data: any[][] = [];
-  
-  getType(): string {
-    return 'XLSX';
-  }
-  
-  render(): string {
-    return `<XLSX>${JSON.stringify(this.data)}</XLSX>`;
-  }
-  
-  save(): void {
-    console.log('Saving Excel document...');
-  }
-  
-  validate(): boolean {
-    // Validar estructura XLSX
-    return true;
-  }
-  
-  setData(data: any[][]): void {
-    this.data = data;
-  }
+  getType(): string { return 'DOCX'; }
+  save(): void { console.log('Saving Word'); }
 }
 
 // 3. Creator abstracto con Factory Method
 abstract class Application {
-  private documents: Document[] = [];
-  
-  // Factory Method - las subclases decidirán qué documento crear
+  // Factory Method - subclases deciden qué crear
   abstract createDocument(): Document;
   
-  // Método que usa el factory method
   newDocument(): Document {
-    // Llama al factory method que será implementado por subclases
     const doc = this.createDocument();
-    this.documents.push(doc);
-    
-    console.log(`Created new ${doc.getType()} document`);
-    
-    // Operaciones comunes para todos los documentos
-    this.configureDocument(doc);
-    this.registerDocumentHandlers(doc);
-    
+    console.log(`Created ${doc.getType()}`);
     return doc;
-  }
-  
-  openDocument(path: string): Document {
-    // Lógica para abrir documento existente
-    const doc = this.createDocument();
-    console.log(`Opening ${doc.getType()} from ${path}`);
-    return doc;
-  }
-  
-  private configureDocument(doc: Document): void {
-    // Configuración común para todos los documentos
-    console.log(`Configuring ${doc.getType()} document...`);
-  }
-  
-  private registerDocumentHandlers(doc: Document): void {
-    // Registrar event handlers comunes
-    console.log(`Registering handlers for ${doc.getType()}...`);
-  }
-  
-  getDocuments(): Document[] {
-    return this.documents;
   }
 }
 
-// 4. Creators concretos que implementan el Factory Method
+// 4. Creators concretos
 class PDFApplication extends Application {
   createDocument(): Document {
-    // Esta subclase decide crear PDFDocument
     return new PDFDocument();
   }
 }
 
 class WordApplication extends Application {
   createDocument(): Document {
-    // Esta subclase decide crear WordDocument
     return new WordDocument();
   }
 }
 
-class ExcelApplication extends Application {
-  createDocument(): Document {
-    // Esta subclase decide crear ExcelDocument
-    return new ExcelDocument();
-  }
-}
-
-// ============================================
 // EJEMPLO 3: Abstract Factory Pattern
-// ============================================
+// Crea familias de objetos relacionados
 
-// Abstract Factory crea familias de objetos relacionados
-
-// 1. Definir interfaces para la familia de productos
-
-// Familia de productos: Componentes UI
+// 1. Interfaces de productos
 interface Button {
   render(): void;
-  onClick(handler: () => void): void;
 }
 
 interface Input {
   render(): void;
-  getValue(): string;
-  setValue(value: string): void;
 }
 
-interface Checkbox {
-  render(): void;
-  isChecked(): boolean;
-  setChecked(checked: boolean): void;
-}
-
-// 2. Implementaciones concretas para diferentes temas/plataformas
-
-// Tema Light
+// 2. Implementaciones por tema
 class LightButton implements Button {
-  private handler?: () => void;
-  
-  render(): void {
-    console.log('🔲 Rendering light theme button');
-  }
-  
-  onClick(handler: () => void): void {
-    this.handler = handler;
-  }
+  render(): void { console.log('Light button'); }
 }
 
 class LightInput implements Input {
-  private value: string = '';
-  
-  render(): void {
-    console.log('⬜ Rendering light theme input');
-  }
-  
-  getValue(): string {
-    return this.value;
-  }
-  
-  setValue(value: string): void {
-    this.value = value;
-  }
+  render(): void { console.log('Light input'); }
 }
 
-class LightCheckbox implements Checkbox {
-  private checked: boolean = false;
-  
-  render(): void {
-    console.log('☐ Rendering light theme checkbox');
-  }
-  
-  isChecked(): boolean {
-    return this.checked;
-  }
-  
-  setChecked(checked: boolean): void {
-    this.checked = checked;
-  }
-}
-
-// Tema Dark
 class DarkButton implements Button {
-  private handler?: () => void;
-  
-  render(): void {
-    console.log('⬛ Rendering dark theme button');
-  }
-  
-  onClick(handler: () => void): void {
-    this.handler = handler;
-  }
+  render(): void { console.log('Dark button'); }
 }
 
 class DarkInput implements Input {
-  private value: string = '';
-  
-  render(): void {
-    console.log('⬛ Rendering dark theme input');
-  }
-  
-  getValue(): string {
-    return this.value;
-  }
-  
-  setValue(value: string): void {
-    this.value = value;
-  }
+  render(): void { console.log('Dark input'); }
 }
 
-class DarkCheckbox implements Checkbox {
-  private checked: boolean = false;
-  
-  render(): void {
-    console.log('■ Rendering dark theme checkbox');
-  }
-  
-  isChecked(): boolean {
-    return this.checked;
-  }
-  
-  setChecked(checked: boolean): void {
-    this.checked = checked;
-  }
-}
-
-// 3. Abstract Factory interface
+// 3. Abstract Factory
 interface UIFactory {
   createButton(): Button;
   createInput(): Input;
-  createCheckbox(): Checkbox;
-  
-  // Método para crear un formulario completo
-  createForm(): Form;
 }
 
-// 4. Concrete Factories
+// 4. Factories concretas
 class LightThemeFactory implements UIFactory {
-  createButton(): Button {
-    return new LightButton();
-  }
-  
-  createInput(): Input {
-    return new LightInput();
-  }
-  
-  createCheckbox(): Checkbox {
-    return new LightCheckbox();
-  }
-  
-  createForm(): Form {
-    // Crear un formulario con componentes del tema light
-    return new Form(
-      this.createButton(),
-      this.createInput(),
-      this.createCheckbox()
-    );
-  }
+  createButton(): Button { return new LightButton(); }
+  createInput(): Input { return new LightInput(); }
 }
 
 class DarkThemeFactory implements UIFactory {
-  createButton(): Button {
-    return new DarkButton();
-  }
-  
-  createInput(): Input {
-    return new DarkInput();
-  }
-  
-  createCheckbox(): Checkbox {
-    return new DarkCheckbox();
-  }
-  
-  createForm(): Form {
-    // Crear un formulario con componentes del tema dark
-    return new Form(
-      this.createButton(),
-      this.createInput(),
-      this.createCheckbox()
-    );
-  }
+  createButton(): Button { return new DarkButton(); }
+  createInput(): Input { return new DarkInput(); }
 }
 
-// 5. Cliente que usa Abstract Factory
-class Form {
-  constructor(
-    private submitButton: Button,
-    private nameInput: Input,
-    private agreeCheckbox: Checkbox
-  ) {}
-  
-  render(): void {
-    console.log('=== Rendering Form ===');
-    this.nameInput.render();
-    this.agreeCheckbox.render();
-    this.submitButton.render();
-    console.log('===================');
-  }
-  
-  setup(): void {
-    this.submitButton.onClick(() => {
-      if (this.agreeCheckbox.isChecked()) {
-        console.log(`Submitting form for: ${this.nameInput.getValue()}`);
-      } else {
-        console.log('Please agree to terms');
-      }
-    });
-  }
-}
-
-class Application {
-  private uiFactory: UIFactory;
+// 5. Uso
+class App {
+  private factory: UIFactory;
   
   constructor(theme: 'light' | 'dark') {
-    // Decidir qué factory usar basado en el tema
-    this.uiFactory = theme === 'dark' 
+    this.factory = theme === 'dark' 
       ? new DarkThemeFactory() 
       : new LightThemeFactory();
   }
   
   createUI(): void {
-    // Usar abstract factory para crear UI
-    // No importa qué tema esté activo, el código es el mismo
-    const button = this.uiFactory.createButton();
-    const input = this.uiFactory.createInput();
-    const checkbox = this.uiFactory.createCheckbox();
-    
+    const button = this.factory.createButton();
+    const input = this.factory.createInput();
     button.render();
     input.render();
-    checkbox.render();
-  }
-  
-  createLoginForm(): Form {
-    return this.uiFactory.createForm();
-  }
-  
-  changeTheme(theme: 'light' | 'dark'): void {
-    this.uiFactory = theme === 'dark' 
-      ? new DarkThemeFactory() 
-      : new LightThemeFactory();
-    
-    console.log(`Theme changed to ${theme}`);
   }
 }
 
-// ============================================
 // USO DE LOS FACTORIES
-// ============================================
 
-// Tipos auxiliares
-interface User {
-  id: string;
-  email?: string;
-  phone?: string;
-  deviceToken?: string;
-  slackChannel?: string;
-  preferences: {
-    emailEnabled: boolean;
-    smsEnabled: boolean;
-    pushEnabled: boolean;
-    slackEnabled: boolean;
-  };
-}
+// 1. Simple Factory
+const email = NotificationFactory.createNotification('email');
+await email.send('Hello', 'user@example.com');
 
-// 1. Uso de Simple Factory
-async function demonstrateSimpleFactory() {
-  console.log('\n=== SIMPLE FACTORY DEMO ===\n');
-  
-  // Crear notificaciones específicas
-  const emailNotif = NotificationFactory.createNotification('email');
-  await emailNotif.send('Hello via Email', 'user@example.com');
-  
-  const smsNotif = NotificationFactory.createNotification('sms');
-  await smsNotif.send('Hello via SMS', '+1234567890');
-  
-  // Crear basado en preferencias del usuario
-  const user: User = {
-    id: 'user123',
-    email: 'user@example.com',
-    phone: '+1234567890',
-    deviceToken: 'abc123def456',
-    preferences: {
-      emailEnabled: false,
-      smsEnabled: false,
-      pushEnabled: true,
-      slackEnabled: false
-    }
-  };
-  
-  const userNotif = NotificationFactory.createFromUserPreference(user);
-  console.log(`\nUser prefers: ${userNotif.getType()}`);
-  
-  // Crear la opción más económica
-  const cheapest = NotificationFactory.createMostEconomical();
-  console.log(`\nCheapest option: ${cheapest.getType()} at $${cheapest.getCost()}`);
-  
-  // Crear múltiples canales
-  const multiChannel = NotificationFactory.createMultiChannel(['email', 'sms', 'push']);
-  console.log(`\nCreated ${multiChannel.length} notification channels`);
-  
-  // Registrar un nuevo tipo dinámicamente
-  class TeamsNotification implements Notification {
-    async send(message: string, recipient: string): Promise<boolean> {
-      console.log(`📣 Sending Teams message to ${recipient}: ${message}`);
-      return true;
-    }
-    
-    validateRecipient(recipient: string): boolean {
-      return recipient.startsWith('@');
-    }
-    
-    getType(): string { return 'TEAMS'; }
-    getCost(): number { return 0.01; }
-    getDeliveryTime(): string { return 'Instant'; }
-  }
-  
-  NotificationFactory.registerType('teams', () => new TeamsNotification());
-  const teamsNotif = NotificationFactory.createNotification('teams');
-  await teamsNotif.send('Hello Teams!', '@channel');
-}
+// 2. Factory Method
+const pdfApp = new PDFApplication();
+const doc = pdfApp.newDocument(); // Crea PDF
+doc.save();
 
-// 2. Uso de Factory Method
-function demonstrateFactoryMethod() {
-  console.log('\n=== FACTORY METHOD DEMO ===\n');
-  
-  // Diferentes aplicaciones crean diferentes tipos de documentos
-  const pdfApp = new PDFApplication();
-  const wordApp = new WordApplication();
-  const excelApp = new ExcelApplication();
-  
-  // Cada aplicación crea su tipo específico de documento
-  const pdfDoc = pdfApp.newDocument();
-  const wordDoc = wordApp.newDocument();
-  const excelDoc = excelApp.newDocument();
-  
-  // Pero el código cliente no necesita saber los tipos específicos
-  function processDocument(app: Application) {
-    const doc = app.newDocument();
-    doc.save();
-    console.log(`Processed ${doc.getType()} document`);
-  }
-  
-  processDocument(pdfApp);
-  processDocument(wordApp);
-  processDocument(excelApp);
-}
-
-// 3. Uso de Abstract Factory
-function demonstrateAbstractFactory() {
-  console.log('\n=== ABSTRACT FACTORY DEMO ===\n');
-  
-  // Crear aplicación con tema light
-  let app = new Application('light');
-  console.log('Light Theme:');
-  app.createUI();
-  
-  const lightForm = app.createLoginForm();
-  lightForm.render();
-  
-  // Cambiar a tema dark
-  app.changeTheme('dark');
-  console.log('\nDark Theme:');
-  app.createUI();
-  
-  const darkForm = app.createLoginForm();
-  darkForm.render();
-  
-  // El código cliente no necesita saber sobre temas específicos
-  function createUserInterface(factory: UIFactory) {
-    const button = factory.createButton();
-    const input = factory.createInput();
-    const checkbox = factory.createCheckbox();
-    
-    // Usar los componentes sin saber su tema
-    button.render();
-    input.render();
-    checkbox.render();
-  }
-  
-  createUserInterface(new LightThemeFactory());
-  createUserInterface(new DarkThemeFactory());
-}
-
-// Ejecutar demos
-// demonstrateSimpleFactory();
-// demonstrateFactoryMethod();
-// demonstrateAbstractFactory();
+// 3. Abstract Factory
+const app = new App('dark');
+app.createUI(); // Crea UI con tema dark
 ```
 
 ---

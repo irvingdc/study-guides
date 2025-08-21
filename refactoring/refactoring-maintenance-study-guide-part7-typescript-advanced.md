@@ -59,317 +59,116 @@ Los Utility Types son tipos predefinidos en TypeScript que transforman otros tip
 // EJEMPLO 1: Partial, Required, y Readonly
 // ============================================
 
-// Tipo base de usuario
+// Tipo base
 interface User {
   id: string;
   name: string;
   email: string;
-  age: number;
-  role: 'admin' | 'user' | 'guest';
-  settings?: UserSettings;
-  createdAt: Date;
-  updatedAt: Date;
+  role: 'admin' | 'user';
+  settings?: { theme: 'light' | 'dark' };
 }
 
-interface UserSettings {
-  theme: 'light' | 'dark';
-  notifications: boolean;
-  language: string;
+// PARTIAL<T> - Hace todas las propiedades opcionales
+function updateUser(user: User, updates: Partial<User>): User {
+  return { ...user, ...updates };
 }
 
-// PARTIAL<T> - Útil para actualizaciones parciales
-class UserService {
-  private users = new Map<string, User>();
-  
-  // Partial permite actualizar solo algunos campos
-  async updateUser(id: string, updates: Partial<User>): Promise<User> {
-    const user = this.users.get(id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    
-    // TypeScript sabe que todas las propiedades en 'updates' son opcionales
-    const updatedUser: User = {
-      ...user,
-      ...updates,
-      updatedAt: new Date() // Siempre actualizar timestamp
-    };
-    
-    // Validación: No permitir cambiar ID
-    if (updates.id && updates.id !== id) {
-      throw new Error('Cannot change user ID');
-    }
-    
-    this.users.set(id, updatedUser);
-    return updatedUser;
-  }
-  
-  // Ejemplo de uso con Partial anidado
-  async updateUserSettings(
-    id: string, 
-    settings: Partial<UserSettings>
-  ): Promise<User> {
-    const user = this.users.get(id);
-    if (!user) {
-      throw new Error('User not found');
-    }
-    
-    return this.updateUser(id, {
-      settings: {
-        ...user.settings,
-        ...settings
-      }
-    });
-  }
-}
+// Uso: puedes actualizar solo algunos campos
+const user: User = { id: '1', name: 'John', email: 'j@j.com', role: 'user' };
+const updated = updateUser(user, { name: 'Jane' }); // Solo actualiza name
 
-// REQUIRED<T> - Fuerza que todas las propiedades estén presentes
-type CompleteUser = Required<User>;
+// REQUIRED<T> - Hace todas las propiedades requeridas
+type CompleteUser = Required<User>; // settings ya no es opcional
 
-// Útil para validación de datos completos
-function validateCompleteProfile(user: any): user is CompleteUser {
-  return (
-    user.id !== undefined &&
-    user.name !== undefined &&
-    user.email !== undefined &&
-    user.age !== undefined &&
-    user.role !== undefined &&
-    user.settings !== undefined && // settings ahora es requerido
-    user.createdAt !== undefined &&
-    user.updatedAt !== undefined
-  );
-}
-
-// READONLY<T> - Previene mutaciones accidentales
+// READONLY<T> - Hace propiedades de solo lectura
 type ImmutableUser = Readonly<User>;
-
-class UserRepository {
-  // Retorna usuarios inmutables para prevenir modificaciones externas
-  async findById(id: string): Promise<ImmutableUser | null> {
-    const user = await this.fetchUser(id);
-    return user ? Object.freeze(user) : null;
-  }
-  
-  private async fetchUser(id: string): Promise<User | null> {
-    // Simulación de fetch desde DB
-    return null;
-  }
-}
-
-// Deep Readonly - Readonly recursivo
-type DeepReadonly<T> = {
-  readonly [P in keyof T]: T[P] extends object ? DeepReadonly<T[P]> : T[P];
-};
-
-type DeeplyImmutableUser = DeepReadonly<User>;
+const immutable: ImmutableUser = user;
+// immutable.name = 'New'; // Error! Cannot assign to 'name'
 
 // ============================================
 // EJEMPLO 2: Pick, Omit, y Exclude
 // ============================================
 
-// PICK<T, K> - Seleccionar propiedades específicas
-type UserBasicInfo = Pick<User, 'id' | 'name' | 'email'>;
-type UserPublicProfile = Pick<User, 'name' | 'role' | 'createdAt'>;
+// PICK<T, K> - Selecciona propiedades específicas
+type UserBasic = Pick<User, 'id' | 'name'>;
+// UserBasic = { id: string; name: string }
 
-// Útil para diferentes vistas de los mismos datos
-class UserController {
-  // Endpoint público - solo información básica
-  async getPublicProfile(id: string): Promise<UserPublicProfile> {
-    const user = await this.userService.findById(id);
-    
-    // Pick asegura que solo retornamos los campos permitidos
-    const publicProfile: UserPublicProfile = {
-      name: user.name,
-      role: user.role,
-      createdAt: user.createdAt
-    };
-    
-    return publicProfile;
-  }
-  
-  // Endpoint autenticado - más información
-  async getUserInfo(id: string, requesterId: string): Promise<UserBasicInfo> {
-    await this.checkPermission(requesterId, id);
-    
-    const user = await this.userService.findById(id);
-    
-    const userInfo: UserBasicInfo = {
-      id: user.id,
-      name: user.name,
-      email: user.email
-    };
-    
-    return userInfo;
-  }
-  
-  private userService = new UserService();
-  
-  private async checkPermission(requesterId: string, targetId: string): Promise<void> {
-    // Verificar permisos
-  }
+// OMIT<T, K> - Excluye propiedades específicas  
+type UserPublic = Omit<User, 'email' | 'settings'>;
+// UserPublic = { id: string; name: string; role: 'admin' | 'user' }
+
+// Uso práctico en APIs
+function getPublicUser(user: User): UserPublic {
+  const { email, settings, ...publicData } = user;
+  return publicData;
 }
 
-// OMIT<T, K> - Excluir propiedades específicas
-type UserWithoutSensitiveData = Omit<User, 'email' | 'settings'>;
-type UserCreateDTO = Omit<User, 'id' | 'createdAt' | 'updatedAt'>;
+// EXCLUDE<T, U> - Excluye tipos de una unión
+type Role = 'admin' | 'user' | 'guest';
+type NonAdmin = Exclude<Role, 'admin'>; // 'user' | 'guest'
 
-// Útil para DTOs y transferencia de datos
-class UserMapper {
-  // Mapear a DTO sin campos autogenerados
-  static toCreateDTO(input: any): UserCreateDTO {
-    return {
-      name: input.name,
-      email: input.email,
-      age: input.age,
-      role: input.role || 'user',
-      settings: input.settings
-    };
-  }
-  
-  // Mapear a respuesta sin datos sensibles
-  static toPublicResponse(user: User): UserWithoutSensitiveData {
-    const { email, settings, ...publicData } = user;
-    return publicData;
-  }
-}
-
-// EXCLUDE<T, U> - Excluir tipos de una unión
-type UserRole = User['role']; // 'admin' | 'user' | 'guest'
-type NonAdminRole = Exclude<UserRole, 'admin'>; // 'user' | 'guest'
-
-// Útil para restricciones de tipos
-function createRestrictedUser(data: {
-  name: string;
-  email: string;
-  role: NonAdminRole; // No puede ser admin
-}): User {
-  return {
-    id: generateId(),
-    ...data,
-    age: 0,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-}
+// EXTRACT<T, U> - Extrae tipos de una unión
+type AdminOnly = Extract<Role, 'admin'>; // 'admin'
 
 // ============================================
 // EJEMPLO 3: Record y Mapped Types
 // ============================================
 
-// RECORD<K, T> - Crear objetos con tipos específicos
-type UserPermissions = Record<UserRole, string[]>;
-
-const permissions: UserPermissions = {
-  admin: ['read', 'write', 'delete', 'manage_users'],
-  user: ['read', 'write'],
-  guest: ['read']
+// RECORD<K, T> - Crea objetos con claves K y valores T
+type Permissions = Record<'admin' | 'user', string[]>;
+const perms: Permissions = {
+  admin: ['read', 'write', 'delete'],
+  user: ['read']
 };
 
-// Record con tipos más complejos
-type UserCache = Record<string, {
-  user: User;
-  cachedAt: Date;
-  expiresAt: Date;
-}>;
-
-class CacheManager {
-  private cache: UserCache = {};
-  
-  set(user: User, ttl: number = 3600000): void {
-    const now = new Date();
-    this.cache[user.id] = {
-      user,
-      cachedAt: now,
-      expiresAt: new Date(now.getTime() + ttl)
-    };
-  }
-  
-  get(id: string): User | null {
-    const cached = this.cache[id];
-    
-    if (!cached) return null;
-    
-    if (cached.expiresAt < new Date()) {
-      delete this.cache[id];
-      return null;
-    }
-    
-    return cached.user;
-  }
-}
-
-// Mapped Types personalizados
+// Mapped Types - Transforma propiedades
 type Nullable<T> = {
   [P in keyof T]: T[P] | null;
 };
 
 type NullableUser = Nullable<User>;
+// Todas las propiedades ahora pueden ser null
 
-// Mapped type con transformación de propiedades
+// Template literal types con mapped types
 type Getters<T> = {
-  [P in keyof T as `get${Capitalize<string & P>}`]: () => T[P];
+  [K in keyof T as `get${Capitalize<string & K>}`]: () => T[K];
 };
 
 type UserGetters = Getters<User>;
-// Resultado:
-// {
-//   getId: () => string;
-//   getName: () => string;
-//   getEmail: () => string;
-//   // etc...
-// }
+// { getId: () => string; getName: () => string; ... }
 
 // ============================================
 // EJEMPLO 4: ReturnType y Parameters
 // ============================================
 
-// Función compleja con tipo de retorno inferido
-async function fetchUserWithPosts(userId: string) {
-  const user = await fetchUser(userId);
-  const posts = await fetchPosts(userId);
-  
+// Función con tipo de retorno complejo
+function processData(id: string, options: { format: boolean }) {
   return {
-    ...user,
-    posts,
-    postCount: posts.length,
-    lastPostDate: posts[0]?.createdAt || null
+    id,
+    data: [1, 2, 3],
+    formatted: options.format
   };
 }
 
-// RETURNTYPE<T> - Capturar el tipo de retorno
-type UserWithPosts = Awaited<ReturnType<typeof fetchUserWithPosts>>;
+// RETURNTYPE<T> - Extrae el tipo de retorno
+type Result = ReturnType<typeof processData>;
+// Result = { id: string; data: number[]; formatted: boolean }
 
-// Ahora podemos usar este tipo en otros lugares
-class UserProfileService {
-  async getCompleteProfile(userId: string): Promise<UserWithPosts> {
-    return fetchUserWithPosts(userId);
-  }
-  
-  formatProfile(profile: UserWithPosts): string {
-    return `${profile.name} has ${profile.postCount} posts`;
-  }
-}
+// PARAMETERS<T> - Extrae los tipos de parámetros
+type Params = Parameters<typeof processData>;
+// Params = [string, { format: boolean }]
 
-// PARAMETERS<T> - Capturar tipos de parámetros
-type FetchUserParams = Parameters<typeof fetchUserWithPosts>;
-// FetchUserParams es [string]
-
-// Útil para crear wrappers o decoradores
-function withCache<T extends (...args: any[]) => any>(
+// Uso práctico: wrapper genérico
+function cached<T extends (...args: any[]) => any>(
   fn: T
 ): (...args: Parameters<T>) => ReturnType<T> {
-  const cache = new Map<string, ReturnType<T>>();
-  
-  return (...args: Parameters<T>): ReturnType<T> => {
+  const cache = new Map();
+  return (...args) => {
     const key = JSON.stringify(args);
-    
-    if (cache.has(key)) {
-      return cache.get(key)!;
+    if (!cache.has(key)) {
+      cache.set(key, fn(...args));
     }
-    
-    const result = fn(...args);
-    cache.set(key, result);
-    return result;
+    return cache.get(key);
   };
 }
 
@@ -377,57 +176,26 @@ function withCache<T extends (...args: any[]) => any>(
 // EJEMPLO 5: Conditional Types
 // ============================================
 
-// Tipos condicionales básicos
+// Tipos condicionales - T extends U ? X : Y
 type IsString<T> = T extends string ? true : false;
-
 type Test1 = IsString<string>;  // true
 type Test2 = IsString<number>;  // false
 
-// Tipos condicionales más complejos
-type ExtractArrayType<T> = T extends (infer U)[] ? U : never;
-
-type StringArray = ExtractArrayType<string[]>;  // string
-type NotArray = ExtractArrayType<number>;       // never
-
-// Conditional types para APIs
-type APIResponse<T> = T extends { error: string }
-  ? { success: false; error: string }
-  : { success: true; data: T };
-
-function handleResponse<T>(response: T): APIResponse<T> {
-  if (hasError(response)) {
-    return { success: false, error: (response as any).error } as APIResponse<T>;
-  }
-  return { success: true, data: response } as APIResponse<T>;
-}
-
-function hasError(response: any): response is { error: string } {
-  return response && typeof response.error === 'string';
-}
+// Inferencia con 'infer'
+type Unpacked<T> = T extends (infer U)[] ? U : T;
+type Elem = Unpacked<string[]>;  // string
+type Same = Unpacked<number>;    // number
 
 // Template Literal Types
-type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
-type APIEndpoint = '/users' | '/posts' | '/comments';
+type Method = 'GET' | 'POST';
+type Path = '/users' | '/posts';
+type Route = `${Method} ${Path}`;
+// Route = 'GET /users' | 'GET /posts' | 'POST /users' | 'POST /posts'
 
-type APIRoute = `${HTTPMethod} ${APIEndpoint}`;
-// Genera: 'GET /users' | 'GET /posts' | ... | 'DELETE /comments'
-
-// Útil para type-safe routing
-const routes: Record<APIRoute, Function> = {
-  'GET /users': () => { /* handler */ },
-  'POST /users': () => { /* handler */ },
-  'GET /posts': () => { /* handler */ },
-  // TypeScript fuerza que implementemos todas las combinaciones
-  'POST /posts': () => { /* handler */ },
-  'PUT /users': () => { /* handler */ },
-  'PUT /posts': () => { /* handler */ },
-  'PUT /comments': () => { /* handler */ },
-  'DELETE /users': () => { /* handler */ },
-  'DELETE /posts': () => { /* handler */ },
-  'DELETE /comments': () => { /* handler */ },
-  'GET /comments': () => { /* handler */ },
-  'POST /comments': () => { /* handler */ }
-};
+// Uso práctico
+type ApiResponse<T> = T extends { error: any }
+  ? { success: false; error: string }
+  : { success: true; data: T };
 
 ---
 
@@ -459,292 +227,140 @@ Los generics permiten escribir código que funciona con múltiples tipos manteni
 // EJEMPLO 1: Generic Constraints
 // ============================================
 
-// Constraint básico - T debe tener una propiedad 'id'
-interface Identifiable {
-  id: string | number;
+// Constraint básico - T debe tener propiedad 'id'
+interface HasId {
+  id: string;
 }
 
-class Repository<T extends Identifiable> {
-  private items = new Map<string | number, T>();
+class Store<T extends HasId> {
+  private items = new Map<string, T>();
   
   add(item: T): void {
-    // TypeScript sabe que item tiene 'id' por el constraint
-    this.items.set(item.id, item);
+    this.items.set(item.id, item); // TypeScript sabe que item.id existe
   }
   
-  findById(id: T['id']): T | undefined {
+  find(id: string): T | undefined {
     return this.items.get(id);
   }
-  
-  update(id: T['id'], updates: Partial<T>): T | undefined {
-    const item = this.items.get(id);
-    if (!item) return undefined;
-    
-    const updated = { ...item, ...updates };
-    this.items.set(id, updated);
-    return updated;
-  }
-  
-  // Método que requiere constraint adicional
-  findByProperty<K extends keyof T>(
-    property: K,
-    value: T[K]
-  ): T[] {
-    const results: T[] = [];
-    
-    for (const item of this.items.values()) {
-      if (item[property] === value) {
-        results.push(item);
-      }
-    }
-    
-    return results;
-  }
 }
 
-// Uso con diferentes tipos que cumplen el constraint
-interface Product extends Identifiable {
+// Uso con constraint
+interface Product {
   id: string;
   name: string;
-  price: number;
 }
 
-interface Order extends Identifiable {
-  id: number;
-  customerId: string;
-  total: number;
-}
-
-const productRepo = new Repository<Product>();
-const orderRepo = new Repository<Order>();
-
-// TypeScript infiere los tipos correctamente
-productRepo.add({ id: 'P1', name: 'Laptop', price: 999 });
-orderRepo.add({ id: 1, customerId: 'C1', total: 999 });
+const store = new Store<Product>();
+store.add({ id: '1', name: 'Laptop' }); // OK
+// store.add({ name: 'Mouse' }); // Error! Falta 'id'
 
 // ============================================
 // EJEMPLO 2: Multiple Type Parameters
 // ============================================
 
-// Mapa bidireccional con dos tipos genéricos
-class BiMap<K, V> {
-  private keyToValue = new Map<K, V>();
-  private valueToKey = new Map<V, K>();
+// Múltiples parámetros de tipo
+class Pair<T, U> {
+  constructor(
+    public first: T,
+    public second: U
+  ) {}
   
-  set(key: K, value: V): void {
-    // Limpiar mapeos anteriores si existen
-    const oldValue = this.keyToValue.get(key);
-    if (oldValue !== undefined) {
-      this.valueToKey.delete(oldValue);
-    }
-    
-    const oldKey = this.valueToKey.get(value);
-    if (oldKey !== undefined) {
-      this.keyToValue.delete(oldKey);
-    }
-    
-    this.keyToValue.set(key, value);
-    this.valueToKey.set(value, key);
-  }
-  
-  getByKey(key: K): V | undefined {
-    return this.keyToValue.get(key);
-  }
-  
-  getByValue(value: V): K | undefined {
-    return this.valueToKey.get(value);
-  }
-  
-  deleteByKey(key: K): boolean {
-    const value = this.keyToValue.get(key);
-    if (value === undefined) return false;
-    
-    this.keyToValue.delete(key);
-    this.valueToKey.delete(value);
-    return true;
-  }
-  
-  deleteByValue(value: V): boolean {
-    const key = this.valueToKey.get(value);
-    if (key === undefined) return false;
-    
-    this.valueToKey.delete(value);
-    this.keyToValue.delete(key);
-    return true;
+  swap(): Pair<U, T> {
+    return new Pair(this.second, this.first);
   }
 }
 
-// Uso: mapeo entre IDs y UUIDs
-const idMap = new BiMap<number, string>();
-idMap.set(1, 'abc-123');
-idMap.set(2, 'def-456');
+const pair = new Pair<string, number>('hello', 42);
+const swapped = pair.swap(); // Pair<number, string>
 
-console.log(idMap.getByKey(1));        // 'abc-123'
-console.log(idMap.getByValue('abc-123')); // 1
+// Función genérica con múltiples parámetros
+function map<T, U>(
+  array: T[],
+  fn: (item: T) => U
+): U[] {
+  return array.map(fn);
+}
+
+const numbers = [1, 2, 3];
+const strings = map(numbers, n => n.toString()); // string[]
 
 // ============================================
 // EJEMPLO 3: Generic Functions con Type Inference
 // ============================================
 
-// Función genérica que infiere tipos de los argumentos
-function groupBy<T, K extends keyof T>(
-  items: T[],
-  key: K
-): Record<string, T[]> {
-  const groups: Record<string, T[]> = {};
-  
-  for (const item of items) {
-    const groupKey = String(item[key]);
-    
-    if (!groups[groupKey]) {
-      groups[groupKey] = [];
-    }
-    
-    groups[groupKey].push(item);
-  }
-  
-  return groups;
-}
-
 // TypeScript infiere los tipos automáticamente
-const users: User[] = [
-  { id: '1', name: 'Alice', role: 'admin', age: 30 } as User,
-  { id: '2', name: 'Bob', role: 'user', age: 25 } as User,
-  { id: '3', name: 'Charlie', role: 'user', age: 35 } as User
-];
-
-const usersByRole = groupBy(users, 'role');
-// TypeScript sabe que usersByRole es Record<string, User[]>
-
-// Función genérica más compleja con múltiples constraints
-function mergeObjects<
-  T extends object,
-  U extends object,
-  K extends keyof T & keyof U
->(
-  obj1: T,
-  obj2: U,
-  conflictResolver?: (key: K, val1: T[K], val2: U[K]) => any
-): T & U {
-  const result = { ...obj1 } as T & U;
-  
-  for (const key in obj2) {
-    if (key in obj1 && conflictResolver) {
-      // Resolver conflictos si hay una función proporcionada
-      (result as any)[key] = conflictResolver(
-        key as any,
-        (obj1 as any)[key],
-        (obj2 as any)[key]
-      );
-    } else {
-      (result as any)[key] = obj2[key];
-    }
-  }
-  
-  return result;
+function identity<T>(value: T): T {
+  return value;
 }
 
+const str = identity('hello');  // T se infiere como string
+const num = identity(42);       // T se infiere como number
+
+// Constraint con keyof
+function getProperty<T, K extends keyof T>(
+  obj: T,
+  key: K
+): T[K] {
+  return obj[key];
+}
+
+const person = { name: 'Alice', age: 30 };
+const name = getProperty(person, 'name'); // string
+const age = getProperty(person, 'age');   // number
+// getProperty(person, 'invalid'); // Error!
+
 // ============================================
-// EJEMPLO 4: Higher-Order Types
+// EJEMPLO 4: Utility Type Patterns
 // ============================================
 
-// Tipo que transforma las propiedades de otro tipo
-type AsyncifyMethods<T> = {
-  [K in keyof T]: T[K] extends (...args: any[]) => any
-    ? T[K] extends (...args: infer A) => infer R
-      ? (...args: A) => Promise<R>
-      : never
-    : T[K];
+// DeepPartial - Hace todo parcial recursivamente
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
 };
 
-// Clase original con métodos síncronos
-class SyncService {
-  getName(): string {
-    return 'Service';
-  }
-  
-  calculate(a: number, b: number): number {
-    return a + b;
-  }
-  
-  data: string = 'some data';
+interface Config {
+  server: {
+    port: number;
+    host: string;
+  };
+  database: {
+    url: string;
+  };
 }
 
-// Versión async de la clase
-type AsyncService = AsyncifyMethods<SyncService>;
-// AsyncService tendrá:
-// {
-//   getName(): Promise<string>;
-//   calculate(a: number, b: number): Promise<number>;
-//   data: string; // Las propiedades no-función permanecen igual
-// }
-
-// Factory genérico que crea proxies async
-function makeAsync<T extends object>(service: T): AsyncifyMethods<T> {
-  return new Proxy(service, {
-    get(target, prop) {
-      const value = target[prop as keyof T];
-      
-      if (typeof value === 'function') {
-        return async (...args: any[]) => {
-          // Simular operación async
-          await new Promise(resolve => setTimeout(resolve, 100));
-          return value.apply(target, args);
-        };
-      }
-      
-      return value;
-    }
-  }) as AsyncifyMethods<T>;
-}
+type PartialConfig = DeepPartial<Config>;
+// Ahora puedes actualizar solo partes anidadas:
+const update: PartialConfig = {
+  server: { port: 3000 } // No necesitas 'host'
+};
 
 // ============================================
 // EJEMPLO 5: Branded Types
 // ============================================
 
-// Branded types para prevenir mezclar tipos similares
+// Branded types previenen mezclar tipos similares
 type Brand<K, T> = K & { __brand: T };
 
 type UserId = Brand<string, 'UserId'>;
 type PostId = Brand<string, 'PostId'>;
-type Email = Brand<string, 'Email'>;
 
-// Funciones para crear branded types
-function createUserId(id: string): UserId {
+function toUserId(id: string): UserId {
   return id as UserId;
 }
 
-function createPostId(id: string): PostId {
+function toPostId(id: string): PostId {
   return id as PostId;
 }
 
-function createEmail(email: string): Email {
-  if (!email.includes('@')) {
-    throw new Error('Invalid email');
-  }
-  return email as Email;
-}
+// Ahora no puedes mezclar los tipos
+function getUser(id: UserId) { /* ... */ }
+function getPost(id: PostId) { /* ... */ }
 
-// Ahora no podemos mezclar accidentalmente los tipos
-class BlogService {
-  getPost(postId: PostId): Post | null {
-    // TypeScript garantiza que recibimos un PostId, no un UserId
-    return null;
-  }
-  
-  getPostsByUser(userId: UserId): Post[] {
-    // TypeScript garantiza que recibimos un UserId, no un PostId
-    return [];
-  }
-  
-  sendEmail(to: Email, subject: string): void {
-    // TypeScript garantiza que 'to' es un Email válido
-  }
-}
+const userId = toUserId('123');
+const postId = toPostId('456');
 
-// Esto causará error de compilación:
-// const userId = createUserId('123');
-// blogService.getPost(userId); // Error! UserId no es asignable a PostId
+getUser(userId);  // OK
+// getUser(postId); // Error! PostId != UserId
 
 ---
 
@@ -777,125 +393,59 @@ Los Type Guards son funciones o expresiones que permiten a TypeScript refinar el
 // ============================================
 
 // Union type que necesita type guards
-type ApiResponse<T> = 
+type Response<T> = 
   | { status: 'success'; data: T }
-  | { status: 'error'; error: string; code: number }
-  | { status: 'loading' };
+  | { status: 'error'; error: string };
 
-// Type guard para cada variante
-function isSuccess<T>(response: ApiResponse<T>): response is { status: 'success'; data: T } {
-  return response.status === 'success';
+// Type guard con predicado de tipo
+function isSuccess<T>(res: Response<T>): res is { status: 'success'; data: T } {
+  return res.status === 'success';
 }
 
-function isError<T>(response: ApiResponse<T>): response is { status: 'error'; error: string; code: number } {
-  return response.status === 'error';
-}
-
-function isLoading<T>(response: ApiResponse<T>): response is { status: 'loading' } {
-  return response.status === 'loading';
-}
-
-// Uso de type guards
-function handleApiResponse<T>(response: ApiResponse<T>): void {
+// Uso del type guard
+function handle<T>(response: Response<T>) {
   if (isSuccess(response)) {
-    // TypeScript sabe que response tiene 'data'
-    console.log('Success:', response.data);
-  } else if (isError(response)) {
-    // TypeScript sabe que response tiene 'error' y 'code'
-    console.error(`Error ${response.code}: ${response.error}`);
-  } else if (isLoading(response)) {
-    // TypeScript sabe que response solo tiene 'status'
-    console.log('Loading...');
-  }
-}
-
-// ============================================
-// EJEMPLO 2: Type Guards Complejos
-// ============================================
-
-// Tipos de dominio complejos
-interface CreditCardPayment {
-  type: 'credit_card';
-  cardNumber: string;
-  cvv: string;
-  expiryDate: string;
-}
-
-interface PayPalPayment {
-  type: 'paypal';
-  email: string;
-  password: string;
-}
-
-interface BankTransferPayment {
-  type: 'bank_transfer';
-  accountNumber: string;
-  routingNumber: string;
-  accountHolder: string;
-}
-
-type PaymentMethod = CreditCardPayment | PayPalPayment | BankTransferPayment;
-
-// Type guards más sofisticados
-class PaymentValidator {
-  // Guard que también valida la estructura
-  static isCreditCard(payment: PaymentMethod): payment is CreditCardPayment {
-    return (
-      payment.type === 'credit_card' &&
-      'cardNumber' in payment &&
-      'cvv' in payment &&
-      'expiryDate' in payment &&
-      this.isValidCardNumber(payment.cardNumber) &&
-      this.isValidCVV(payment.cvv)
-    );
-  }
-  
-  static isPayPal(payment: PaymentMethod): payment is PayPalPayment {
-    return (
-      payment.type === 'paypal' &&
-      'email' in payment &&
-      'password' in payment &&
-      this.isValidEmail(payment.email)
-    );
-  }
-  
-  static isBankTransfer(payment: PaymentMethod): payment is BankTransferPayment {
-    return (
-      payment.type === 'bank_transfer' &&
-      'accountNumber' in payment &&
-      'routingNumber' in payment &&
-      'accountHolder' in payment
-    );
-  }
-  
-  private static isValidCardNumber(cardNumber: string): boolean {
-    return /^\d{16}$/.test(cardNumber.replace(/\s/g, ''));
-  }
-  
-  private static isValidCVV(cvv: string): boolean {
-    return /^\d{3,4}$/.test(cvv);
-  }
-  
-  private static isValidEmail(email: string): boolean {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }
-}
-
-// Uso con type guards
-function processPayment(payment: PaymentMethod): void {
-  if (PaymentValidator.isCreditCard(payment)) {
-    // TypeScript sabe que es CreditCardPayment y que es válido
-    processCreditCardPayment(payment.cardNumber, payment.cvv, payment.expiryDate);
-  } else if (PaymentValidator.isPayPal(payment)) {
-    // TypeScript sabe que es PayPalPayment y que el email es válido
-    processPayPalPayment(payment.email, payment.password);
-  } else if (PaymentValidator.isBankTransfer(payment)) {
-    // TypeScript sabe que es BankTransferPayment
-    processBankTransfer(payment.accountNumber, payment.routingNumber);
+    console.log(response.data); // TypeScript sabe que 'data' existe
   } else {
-    // TypeScript sabe que esto nunca debería ejecutarse
-    const _exhaustive: never = payment;
-    throw new Error(`Unknown payment type: ${_exhaustive}`);
+    console.log(response.error); // TypeScript sabe que 'error' existe
+  }
+}
+
+// Guards nativos
+function process(value: string | number) {
+  if (typeof value === 'string') {
+    console.log(value.toUpperCase()); // value es string
+  } else {
+    console.log(value.toFixed(2)); // value es number
+  }
+}
+
+// ============================================
+// EJEMPLO 2: Discriminated Unions
+// ============================================
+
+// Union con discriminador común
+type Payment = 
+  | { type: 'card'; number: string }
+  | { type: 'paypal'; email: string }
+  | { type: 'bank'; account: string };
+
+// Pattern matching con switch
+function processPayment(payment: Payment) {
+  switch (payment.type) {
+    case 'card':
+      console.log(payment.number); // TypeScript sabe que existe
+      break;
+    case 'paypal':
+      console.log(payment.email);
+      break;
+    case 'bank':
+      console.log(payment.account);
+      break;
+    default:
+      // Exhaustive check
+      const _: never = payment;
+      throw new Error('Unknown payment');
   }
 }
 
@@ -903,121 +453,62 @@ function processPayment(payment: PaymentMethod): void {
 // EJEMPLO 3: Assertion Functions
 // ============================================
 
-// Assertion function - lanza error si no se cumple la condición
-function assertIsDefined<T>(value: T | null | undefined, message?: string): asserts value is T {
-  if (value === null || value === undefined) {
-    throw new Error(message || 'Value is null or undefined');
+// Assertion function - asegura un tipo o lanza error
+function assert(condition: any, msg?: string): asserts condition {
+  if (!condition) {
+    throw new Error(msg || 'Assertion failed');
   }
 }
 
 function assertIsString(value: unknown): asserts value is string {
-  if (typeof value !== 'string') {
-    throw new Error(`Expected string, got ${typeof value}`);
+  assert(typeof value === 'string', 'Not a string');
+}
+
+// Uso de assertions
+function process(data: unknown) {
+  assertIsString(data);
+  // Ahora TypeScript sabe que data es string
+  console.log(data.toUpperCase());
+}
+
+// Assertion con narrowing
+function assertDefined<T>(val: T | undefined): asserts val is T {
+  if (val === undefined) {
+    throw new Error('Value is undefined');
   }
 }
 
-function assertIsNumber(value: unknown): asserts value is number {
-  if (typeof value !== 'number' || isNaN(value)) {
-    throw new Error(`Expected valid number, got ${value}`);
-  }
-}
+const maybeString: string | undefined = getValue();
+assertDefined(maybeString);
+// Ahora maybeString es string, no string | undefined
 
-// Assertion function para arrays
-function assertIsArray<T>(
-  value: unknown,
-  itemGuard?: (item: unknown) => item is T
-): asserts value is T[] {
-  if (!Array.isArray(value)) {
-    throw new Error('Value is not an array');
-  }
-  
-  if (itemGuard) {
-    for (let i = 0; i < value.length; i++) {
-      if (!itemGuard(value[i])) {
-        throw new Error(`Invalid item at index ${i}`);
-      }
-    }
-  }
-}
-
-// Uso de assertion functions
-function processUserData(data: unknown): void {
-  // Antes de la assertion, data es 'unknown'
-  assertIsDefined(data, 'User data is required');
-  // Después de la assertion, data es no-null
-  
-  assertIsObject(data);
-  // Ahora data es un object
-  
-  assertHasProperty(data, 'name');
-  assertIsString(data.name);
-  // Ahora TypeScript sabe que data.name es string
-  
-  assertHasProperty(data, 'age');
-  assertIsNumber(data.age);
-  // Ahora TypeScript sabe que data.age es number
-  
-  // Podemos usar data con seguridad
-  console.log(`User: ${data.name}, Age: ${data.age}`);
-}
-
-function assertIsObject(value: unknown): asserts value is object {
-  if (typeof value !== 'object' || value === null) {
-    throw new Error('Value is not an object');
-  }
-}
-
-function assertHasProperty<K extends string>(
-  obj: object,
-  key: K
-): asserts obj is object & Record<K, unknown> {
-  if (!(key in obj)) {
-    throw new Error(`Object does not have property '${key}'`);
-  }
-}
+declare function getValue(): string | undefined;
 
 // ============================================
-// EJEMPLO 4: Discriminated Unions
+// EJEMPLO 4: Narrowing con 'in' operator
 // ============================================
 
-// Union type con discriminador común
-type Shape =
-  | { kind: 'circle'; radius: number }
-  | { kind: 'rectangle'; width: number; height: number }
-  | { kind: 'triangle'; base: number; height: number };
+// Narrowing con 'in'
+type Bird = { fly(): void; layEggs(): void };
+type Fish = { swim(): void; layEggs(): void };
 
-// Type guards usando el discriminador
-function isCircle(shape: Shape): shape is { kind: 'circle'; radius: number } {
-  return shape.kind === 'circle';
+function move(animal: Bird | Fish) {
+  if ('fly' in animal) {
+    animal.fly(); // TypeScript sabe que es Bird
+  } else {
+    animal.swim(); // TypeScript sabe que es Fish
+  }
 }
 
-function isRectangle(shape: Shape): shape is { kind: 'rectangle'; width: number; height: number } {
-  return shape.kind === 'rectangle';
-}
+// instanceof para clases
+class Car { drive() {} }
+class Boat { sail() {} }
 
-function isTriangle(shape: Shape): shape is { kind: 'triangle'; base: number; height: number } {
-  return shape.kind === 'triangle';
-}
-
-// Función que usa exhaustive checking
-function calculateArea(shape: Shape): number {
-  switch (shape.kind) {
-    case 'circle':
-      // TypeScript sabe que shape tiene 'radius'
-      return Math.PI * shape.radius ** 2;
-    
-    case 'rectangle':
-      // TypeScript sabe que shape tiene 'width' y 'height'
-      return shape.width * shape.height;
-    
-    case 'triangle':
-      // TypeScript sabe que shape tiene 'base' y 'height'
-      return (shape.base * shape.height) / 2;
-    
-    default:
-      // Exhaustive check - si agregamos un nuevo tipo, TypeScript avisará
-      const _exhaustive: never = shape;
-      throw new Error(`Unknown shape: ${_exhaustive}`);
+function operate(vehicle: Car | Boat) {
+  if (vehicle instanceof Car) {
+    vehicle.drive();
+  } else {
+    vehicle.sail();
   }
 }
 
@@ -1025,117 +516,33 @@ function calculateArea(shape: Shape): number {
 // EJEMPLO 5: Type Guards para Unknown
 // ============================================
 
-// Guards para validar datos externos (APIs, user input, etc.)
-interface ValidationResult<T> {
-  success: boolean;
-  data?: T;
-  errors?: string[];
-}
-
-class DataValidator {
-  // Validar y transformar unknown a tipo específico
-  static validateUser(input: unknown): ValidationResult<User> {
-    const errors: string[] = [];
-    
-    if (!this.isObject(input)) {
-      return { success: false, errors: ['Input must be an object'] };
-    }
-    
-    // Validar cada campo
-    if (!this.hasStringProperty(input, 'id')) {
-      errors.push('Missing or invalid id');
-    }
-    
-    if (!this.hasStringProperty(input, 'name')) {
-      errors.push('Missing or invalid name');
-    }
-    
-    if (!this.hasStringProperty(input, 'email')) {
-      errors.push('Missing or invalid email');
-    } else if (!this.isValidEmail(input.email)) {
-      errors.push('Invalid email format');
-    }
-    
-    if (!this.hasNumberProperty(input, 'age')) {
-      errors.push('Missing or invalid age');
-    } else if (input.age < 0 || input.age > 150) {
-      errors.push('Age out of valid range');
-    }
-    
-    if (!this.hasEnumProperty(input, 'role', ['admin', 'user', 'guest'])) {
-      errors.push('Invalid role');
-    }
-    
-    if (errors.length > 0) {
-      return { success: false, errors };
-    }
-    
-    // Si llegamos aquí, input es válido
-    return {
-      success: true,
-      data: input as User
-    };
-  }
-  
-  private static isObject(value: unknown): value is object {
-    return typeof value === 'object' && value !== null;
-  }
-  
-  private static hasStringProperty<K extends string>(
-    obj: object,
-    key: K
-  ): obj is object & Record<K, string> {
-    return key in obj && typeof (obj as any)[key] === 'string';
-  }
-  
-  private static hasNumberProperty<K extends string>(
-    obj: object,
-    key: K
-  ): obj is object & Record<K, number> {
-    return key in obj && typeof (obj as any)[key] === 'number';
-  }
-  
-  private static hasEnumProperty<K extends string, T extends string>(
-    obj: object,
-    key: K,
-    values: T[]
-  ): obj is object & Record<K, T> {
-    return key in obj && values.includes((obj as any)[key]);
-  }
-  
-  private static isValidEmail(email: string): boolean {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }
+// Validación de datos externos
+function isUser(value: unknown): value is User {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    'name' in value &&
+    typeof (value as any).id === 'string' &&
+    typeof (value as any).name === 'string'
+  );
 }
 
 // Uso seguro con datos externos
-async function fetchAndProcessUser(userId: string): Promise<User> {
-  const response = await fetch(`/api/users/${userId}`);
-  const data = await response.json();
+async function fetchUser(id: string): Promise<User> {
+  const response = await fetch(`/api/users/${id}`);
+  const data: unknown = await response.json();
   
-  const validation = DataValidator.validateUser(data);
-  
-  if (!validation.success) {
-    throw new Error(`Invalid user data: ${validation.errors?.join(', ')}`);
+  if (!isUser(data)) {
+    throw new Error('Invalid user data');
   }
   
-  return validation.data;
+  // Ahora data es User
+  return data;
 }
 
-// Funciones auxiliares para los ejemplos
-declare function fetchUser(id: string): Promise<User>;
-declare function fetchPosts(userId: string): Promise<Post[]>;
-declare function generateId(): string;
-declare function processCreditCardPayment(card: string, cvv: string, expiry: string): void;
-declare function processPayPalPayment(email: string, password: string): void;
-declare function processBankTransfer(account: string, routing: string): void;
-
-interface Post {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: Date;
-}
+// Funciones auxiliares
+declare function fetch(url: string): Promise<{ json(): Promise<unknown> }>;
 ```
 
 ### Mejores prácticas de TypeScript Avanzado:

@@ -62,459 +62,163 @@ Memoization es una técnica de optimización que almacena los resultados de func
 // ============================================
 
 // ❌ SIN MEMOIZATION: Función costosa que se recalcula cada vez
-class FibonacciCalculator {
-  // Esta implementación tiene complejidad O(2^n) - MUY INEFICIENTE
-  calculate(n: number): number {
-    console.log(`Calculating fibonacci(${n})`);
-    
-    if (n <= 1) return n;
-    
-    // Problema: Recalcula los mismos valores múltiples veces
-    return this.calculate(n - 1) + this.calculate(n - 2);
-  }
-}
-
-// Demostración del problema
-function demonstrateProblem() {
-  const calc = new FibonacciCalculator();
-  
-  console.time('fibonacci(40)');
-  const result = calc.calculate(40); // Toma MUCHO tiempo
-  console.timeEnd('fibonacci(40)');
-  
-  // fibonacci(40) hace 2^40 llamadas recursivas!
-  // Eso es más de 1 TRILLÓN de llamadas
+function fibonacci(n: number): number {
+  if (n <= 1) return n;
+  // Problema: Recalcula los mismos valores múltiples veces
+  // fibonacci(5) calcula fibonacci(3) dos veces, fibonacci(2) tres veces...
+  return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
 // ✅ CON MEMOIZATION: Cachea resultados para evitar recálculos
-class MemoizedFibonacciCalculator {
-  private cache = new Map<number, number>();
-  private hitCount = 0;
-  private missCount = 0;
+function memoize<T>(fn: (n: number) => T): (n: number) => T {
+  const cache = new Map<number, T>();
   
-  calculate(n: number): number {
-    // Verificar cache primero
-    if (this.cache.has(n)) {
-      this.hitCount++;
-      console.log(`Cache hit for fibonacci(${n})`);
-      return this.cache.get(n)!;
+  return (n: number): T => {
+    if (cache.has(n)) {
+      return cache.get(n)!;
     }
     
-    this.missCount++;
-    console.log(`Cache miss - calculating fibonacci(${n})`);
-    
-    // Calcular si no está en cache
-    let result: number;
-    
-    if (n <= 1) {
-      result = n;
-    } else {
-      result = this.calculate(n - 1) + this.calculate(n - 2);
-    }
-    
-    // Guardar en cache antes de retornar
-    this.cache.set(n, result);
-    
+    const result = fn(n);
+    cache.set(n, result);
     return result;
-  }
-  
-  getStats(): CacheStats {
-    const total = this.hitCount + this.missCount;
-    const hitRate = total > 0 ? (this.hitCount / total) * 100 : 0;
-    
-    return {
-      hits: this.hitCount,
-      misses: this.missCount,
-      hitRate: `${hitRate.toFixed(2)}%`,
-      cacheSize: this.cache.size
-    };
-  }
-  
-  clearCache(): void {
-    this.cache.clear();
-    this.hitCount = 0;
-    this.missCount = 0;
-  }
+  };
 }
+
+// Fibonacci memoizado - ahora es O(n) en lugar de O(2^n)
+const memoizedFib = memoize((n: number): number => {
+  if (n <= 1) return n;
+  return memoizedFib(n - 1) + memoizedFib(n - 2);
+});
+
+// Comparación:
+// fibonacci(40) = ~2 billones de llamadas
+// memoizedFib(40) = 40 llamadas
 
 // ============================================
 // EJEMPLO 2: Memoization Genérica Reutilizable
 // ============================================
 
-// Implementación de memoization genérica
-function memoize<TArgs extends any[], TResult>(
-  fn: (...args: TArgs) => TResult,
-  options?: MemoizeOptions
-): (...args: TArgs) => TResult {
-  const cache = new Map<string, CachedValue<TResult>>();
-  const maxSize = options?.maxSize || Infinity;
-  const ttl = options?.ttl || Infinity;
-  const keyGenerator = options?.keyGenerator || JSON.stringify;
+// Memoization genérica con opciones
+function memoizeGeneric<T extends (...args: any[]) => any>(
+  fn: T,
+  maxSize = 100
+): T {
+  const cache = new Map<string, ReturnType<T>>();
   
-  return (...args: TArgs): TResult => {
-    const key = keyGenerator(args);
-    const now = Date.now();
+  return ((...args: Parameters<T>): ReturnType<T> => {
+    const key = JSON.stringify(args);
     
-    // Verificar si existe en cache y no ha expirado
     if (cache.has(key)) {
-      const cached = cache.get(key)!;
-      
-      if (now - cached.timestamp < ttl) {
-        console.log(`Memoize hit for key: ${key}`);
-        return cached.value;
-      } else {
-        // Expiró, eliminar del cache
-        cache.delete(key);
-      }
+      return cache.get(key)!;
     }
     
-    console.log(`Memoize miss - computing for key: ${key}`);
-    
-    // Calcular y cachear
-    const result = fn(...args);
-    
-    // Implementar LRU si hay límite de tamaño
+    // LRU: eliminar el más antiguo si llegamos al límite
     if (cache.size >= maxSize) {
       const firstKey = cache.keys().next().value;
       cache.delete(firstKey);
     }
     
-    cache.set(key, {
-      value: result,
-      timestamp: now
-    });
-    
+    const result = fn(...args);
+    cache.set(key, result);
     return result;
-  };
+  }) as T;
 }
 
-// Decorador para memoization
-function Memoized(options?: MemoizeOptions) {
-  return function(
-    target: any,
-    propertyKey: string,
-    descriptor: PropertyDescriptor
-  ) {
-    const originalMethod = descriptor.value;
-    descriptor.value = memoize(originalMethod, options);
-    return descriptor;
-  };
-}
-
-// Uso del memoization genérico
-class ExpensiveCalculations {
-  // Memoization con decorador
-  @Memoized({ maxSize: 100, ttl: 60000 }) // Cache máx 100 items por 1 minuto
-  calculatePrimeFactors(n: number): number[] {
-    console.log(`Calculating prime factors of ${n}`);
-    const factors: number[] = [];
-    let divisor = 2;
-    
-    while (n > 1) {
-      while (n % divisor === 0) {
-        factors.push(divisor);
-        n /= divisor;
-      }
-      divisor++;
-    }
-    
-    return factors;
-  }
-  
-  // Memoization manual
-  calculateExpensiveHash = memoize(
-    (input: string): string => {
-      console.log(`Calculating hash for: ${input}`);
-      
-      // Simulación de operación costosa
-      let hash = 0;
-      for (let i = 0; i < input.length; i++) {
-        const char = input.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32-bit integer
-        
-        // Simulación de trabajo pesado
-        for (let j = 0; j < 10000; j++) {
-          hash = (hash * 31) % 1000000007;
-        }
-      }
-      
-      return hash.toString(36);
+// Uso práctico
+class DataProcessor {
+  // Memoizar cálculos costosos
+  processData = memoizeGeneric(
+    (data: number[], operation: string): number => {
+      // Simulación de procesamiento costoso
+      if (operation === 'sum') return data.reduce((a, b) => a + b, 0);
+      if (operation === 'avg') return data.reduce((a, b) => a + b, 0) / data.length;
+      if (operation === 'max') return Math.max(...data);
+      return 0;
     },
-    { maxSize: 50 }
+    50 // Máximo 50 resultados en cache
   );
 }
 
 // ============================================
-// EJEMPLO 3: Memoization con Múltiples Argumentos
-// ============================================
-
-class DataProcessor {
-  private cache = new Map<string, any>();
-  
-  // Problema: Función con múltiples argumentos y objetos complejos
-  processData(
-    data: number[],
-    options: ProcessingOptions
-  ): ProcessingResult {
-    // Generar clave única para la combinación de argumentos
-    const cacheKey = this.generateCacheKey(data, options);
-    
-    // Verificar cache
-    if (this.cache.has(cacheKey)) {
-      console.log('Cache hit for processData');
-      return this.cache.get(cacheKey);
-    }
-    
-    console.log('Cache miss - processing data');
-    
-    // Procesamiento costoso
-    const result = this.performExpensiveProcessing(data, options);
-    
-    // Guardar en cache
-    this.cache.set(cacheKey, result);
-    
-    return result;
-  }
-  
-  private generateCacheKey(data: number[], options: ProcessingOptions): string {
-    // Estrategia 1: JSON.stringify (simple pero puede ser lento)
-    // return JSON.stringify({ data, options });
-    
-    // Estrategia 2: Hash personalizado (más rápido)
-    const dataHash = this.hashArray(data);
-    const optionsHash = this.hashObject(options);
-    return `${dataHash}-${optionsHash}`;
-  }
-  
-  private hashArray(arr: number[]): string {
-    // Hash rápido para arrays
-    let hash = arr.length;
-    for (let i = 0; i < Math.min(arr.length, 10); i++) {
-      hash = ((hash << 5) - hash) + arr[i];
-    }
-    return hash.toString(36);
-  }
-  
-  private hashObject(obj: any): string {
-    // Hash para objetos
-    const str = Object.keys(obj).sort().map(k => `${k}:${obj[k]}`).join(',');
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = ((hash << 5) - hash) + str.charCodeAt(i);
-    }
-    return hash.toString(36);
-  }
-  
-  private performExpensiveProcessing(
-    data: number[],
-    options: ProcessingOptions
-  ): ProcessingResult {
-    // Simulación de procesamiento costoso
-    const sorted = [...data].sort((a, b) => 
-      options.sortOrder === 'asc' ? a - b : b - a
-    );
-    
-    const filtered = sorted.filter(n => 
-      n >= options.minValue && n <= options.maxValue
-    );
-    
-    const stats = {
-      mean: filtered.reduce((a, b) => a + b, 0) / filtered.length,
-      median: filtered[Math.floor(filtered.length / 2)],
-      min: Math.min(...filtered),
-      max: Math.max(...filtered),
-      count: filtered.length
-    };
-    
-    return {
-      processedData: filtered,
-      statistics: stats,
-      options: options
-    };
-  }
-}
-
-// ============================================
-// EJEMPLO 4: Memoization con WeakMap para Objetos
+// EJEMPLO 3: Memoization con WeakMap para Objetos
 // ============================================
 
 // WeakMap permite que los objetos sean garbage collected
-class ObjectMemoizer {
-  private cache = new WeakMap<object, Map<string, any>>();
+class ObjectCache<T> {
+  private cache = new WeakMap<object, T>();
   
-  // Memoization que usa el objeto como parte de la clave
-  memoizeForObject<T>(
-    obj: object,
-    key: string,
-    compute: () => T
-  ): T {
-    // Obtener o crear cache para este objeto
-    if (!this.cache.has(obj)) {
-      this.cache.set(obj, new Map());
+  getOrCompute(obj: object, compute: () => T): T {
+    if (this.cache.has(obj)) {
+      return this.cache.get(obj)!;
     }
     
-    const objCache = this.cache.get(obj)!;
-    
-    // Verificar si ya calculamos este valor
-    if (objCache.has(key)) {
-      console.log(`Cache hit for object method: ${key}`);
-      return objCache.get(key);
-    }
-    
-    console.log(`Cache miss - computing ${key} for object`);
-    
-    // Calcular y cachear
     const result = compute();
-    objCache.set(key, result);
-    
+    this.cache.set(obj, result);
     return result;
   }
 }
 
-// Uso con clases
-class User {
-  constructor(
-    public id: string,
-    public name: string,
-    public email: string,
-    private memoizer: ObjectMemoizer = new ObjectMemoizer()
-  ) {}
+// Uso práctico con objetos
+class UserService {
+  private permissionsCache = new ObjectCache<string[]>();
   
-  // Propiedad computada costosa, memoizada por instancia
-  get permissions(): string[] {
-    return this.memoizer.memoizeForObject(
-      this,
-      'permissions',
-      () => this.calculatePermissions()
-    );
-  }
-  
-  get fullProfile(): UserProfile {
-    return this.memoizer.memoizeForObject(
-      this,
-      'fullProfile',
-      () => this.fetchFullProfile()
-    );
-  }
-  
-  private calculatePermissions(): string[] {
-    console.log(`Calculating permissions for user ${this.id}`);
-    // Simulación de cálculo costoso
-    return ['read', 'write', 'delete'];
-  }
-  
-  private fetchFullProfile(): UserProfile {
-    console.log(`Fetching full profile for user ${this.id}`);
-    // Simulación de operación costosa
-    return {
-      id: this.id,
-      name: this.name,
-      email: this.email,
-      avatar: 'avatar.jpg',
-      settings: {},
-      history: []
-    };
+  getUserPermissions(user: User): string[] {
+    return this.permissionsCache.getOrCompute(user, () => {
+      // Cálculo costoso de permisos
+      console.log(`Computing permissions for ${user.id}`);
+      return ['read', 'write'];
+    });
   }
 }
 
 // ============================================
-// EJEMPLO 5: LRU Cache Implementation
+// EJEMPLO 4: LRU Cache Implementation
 // ============================================
 
-// Least Recently Used cache - elimina items menos usados cuando se llena
+// Least Recently Used cache - elimina items menos usados
 class LRUCache<K, V> {
   private cache = new Map<K, V>();
-  private readonly maxSize: number;
   
-  constructor(maxSize: number) {
-    this.maxSize = maxSize;
-  }
+  constructor(private maxSize: number) {}
   
   get(key: K): V | undefined {
-    if (!this.cache.has(key)) {
-      return undefined;
-    }
+    if (!this.cache.has(key)) return undefined;
     
     // Mover al final (más reciente)
     const value = this.cache.get(key)!;
     this.cache.delete(key);
     this.cache.set(key, value);
-    
     return value;
   }
   
   set(key: K, value: V): void {
-    // Si ya existe, eliminar para re-insertar al final
+    // Si existe, eliminar para re-insertar al final
     if (this.cache.has(key)) {
       this.cache.delete(key);
     }
     
-    // Si llegamos al límite, eliminar el más antiguo (primero)
+    // Si llegamos al límite, eliminar el más antiguo
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
       this.cache.delete(firstKey);
-      console.log(`LRU Cache evicted: ${firstKey}`);
     }
     
-    // Agregar al final (más reciente)
     this.cache.set(key, value);
   }
-  
-  has(key: K): boolean {
-    return this.cache.has(key);
-  }
-  
-  clear(): void {
-    this.cache.clear();
-  }
-  
-  get size(): number {
-    return this.cache.size;
-  }
-  
-  get stats(): CacheStats {
-    return {
-      size: this.cache.size,
-      maxSize: this.maxSize,
-      utilization: `${(this.cache.size / this.maxSize * 100).toFixed(2)}%`
-    };
-  }
 }
 
-// Función memoize con LRU
-function memoizeWithLRU<T extends (...args: any[]) => any>(
-  fn: T,
-  maxSize: number = 100
-): T {
-  const cache = new LRUCache<string, ReturnType<T>>(maxSize);
+// Uso práctico
+const apiCache = new LRUCache<string, any>(100);
+
+function fetchData(url: string): any {
+  const cached = apiCache.get(url);
+  if (cached) return cached;
   
-  return ((...args: Parameters<T>): ReturnType<T> => {
-    const key = JSON.stringify(args);
-    
-    // Intentar obtener del cache
-    const cached = cache.get(key);
-    if (cached !== undefined) {
-      return cached;
-    }
-    
-    // Calcular y cachear
-    const result = fn(...args);
-    cache.set(key, result);
-    
-    return result;
-  }) as T;
+  const data = fetch(url); // Operación costosa
+  apiCache.set(url, data);
+  return data;
 }
 
-// Uso
-const memoizedFetch = memoizeWithLRU(
-  async (url: string): Promise<any> => {
-    console.log(`Fetching: ${url}`);
-    const response = await fetch(url);
-    return response.json();
-  },
-  50 // Máximo 50 URLs en cache
-);
 
 ---
 
@@ -546,106 +250,40 @@ Lazy Loading es una técnica de optimización que retrasa la inicialización de 
 // EJEMPLO 1: Lazy Initialization
 // ============================================
 
-// ❌ SIN LAZY LOADING: Todo se inicializa al crear la instancia
-class EagerDatabaseService {
-  private primaryConnection: DatabaseConnection;
-  private readReplicaConnection: DatabaseConnection;
-  private analyticsConnection: DatabaseConnection;
-  private cacheConnection: CacheConnection;
+// ❌ SIN LAZY LOADING: Todo se inicializa inmediatamente
+class EagerService {
+  private db = new DatabaseConnection();      // Se conecta ahora
+  private cache = new CacheConnection();      // Se conecta ahora
+  private analytics = new AnalyticsService(); // Se inicializa ahora
   
-  constructor() {
-    // Problema: TODAS las conexiones se crean inmediatamente
-    // aunque puede que no todas se usen
-    console.log('Initializing all connections...');
-    
-    this.primaryConnection = new DatabaseConnection('primary');
-    this.readReplicaConnection = new DatabaseConnection('replica');
-    this.analyticsConnection = new DatabaseConnection('analytics');
-    this.cacheConnection = new CacheConnection('redis');
-    
-    // Esto puede tomar varios segundos y usar mucha memoria
-  }
-  
-  query(sql: string): any {
-    return this.primaryConnection.execute(sql);
-  }
+  // Problema: Todas las conexiones se crean aunque no se usen
 }
 
-// ✅ CON LAZY LOADING: Las conexiones se crean solo cuando se necesitan
-class LazyDatabaseService {
-  private _primaryConnection?: DatabaseConnection;
-  private _readReplicaConnection?: DatabaseConnection;
-  private _analyticsConnection?: DatabaseConnection;
-  private _cacheConnection?: CacheConnection;
+// ✅ CON LAZY LOADING: Se inicializa solo cuando se necesita
+class LazyService {
+  private _db?: DatabaseConnection;
+  private _cache?: CacheConnection;
   
-  // Getters con lazy initialization
-  private get primaryConnection(): DatabaseConnection {
-    if (!this._primaryConnection) {
-      console.log('Lazy loading primary connection...');
-      this._primaryConnection = new DatabaseConnection('primary');
+  private get db(): DatabaseConnection {
+    if (!this._db) {
+      this._db = new DatabaseConnection(); // Se conecta solo cuando se usa
     }
-    return this._primaryConnection;
+    return this._db;
   }
   
-  private get readReplicaConnection(): DatabaseConnection {
-    if (!this._readReplicaConnection) {
-      console.log('Lazy loading read replica connection...');
-      this._readReplicaConnection = new DatabaseConnection('replica');
+  private get cache(): CacheConnection {
+    if (!this._cache) {
+      this._cache = new CacheConnection();
     }
-    return this._readReplicaConnection;
+    return this._cache;
   }
   
-  private get analyticsConnection(): DatabaseConnection {
-    if (!this._analyticsConnection) {
-      console.log('Lazy loading analytics connection...');
-      this._analyticsConnection = new DatabaseConnection('analytics');
-    }
-    return this._analyticsConnection;
-  }
-  
-  private get cacheConnection(): CacheConnection {
-    if (!this._cacheConnection) {
-      console.log('Lazy loading cache connection...');
-      this._cacheConnection = new CacheConnection('redis');
-    }
-    return this._cacheConnection;
-  }
-  
-  // Los métodos usan los getters lazy
   query(sql: string): any {
-    return this.primaryConnection.execute(sql);
-  }
-  
-  queryReadOnly(sql: string): any {
-    return this.readReplicaConnection.execute(sql);
-  }
-  
-  queryAnalytics(sql: string): any {
-    return this.analyticsConnection.execute(sql);
+    return this.db.execute(sql); // Conexión se crea aquí si no existe
   }
   
   getCached(key: string): any {
-    return this.cacheConnection.get(key);
-  }
-  
-  // Método para liberar recursos
-  dispose(): void {
-    this._primaryConnection?.close();
-    this._readReplicaConnection?.close();
-    this._analyticsConnection?.close();
-    this._cacheConnection?.close();
-  }
-  
-  // Método para ver qué conexiones están activas
-  getActiveConnections(): string[] {
-    const active: string[] = [];
-    
-    if (this._primaryConnection) active.push('primary');
-    if (this._readReplicaConnection) active.push('replica');
-    if (this._analyticsConnection) active.push('analytics');
-    if (this._cacheConnection) active.push('cache');
-    
-    return active;
+    return this.cache.get(key);
   }
 }
 
@@ -653,489 +291,199 @@ class LazyDatabaseService {
 // EJEMPLO 2: Lazy Loading con Proxy
 // ============================================
 
-// Proxy permite interceptar accesos a propiedades
-function createLazyProxy<T extends object>(
-  factory: () => T,
-  onAccess?: (prop: string | symbol) => void
-): T {
+// Proxy para lazy loading automático
+function lazyProxy<T extends object>(factory: () => T): T {
   let instance: T | null = null;
   
   return new Proxy({} as T, {
-    get(target, prop, receiver) {
-      // Crear instancia en el primer acceso
+    get(target, prop) {
       if (!instance) {
-        console.log('Lazy loading via proxy...');
-        instance = factory();
+        instance = factory(); // Se crea en el primer acceso
       }
-      
-      // Log de acceso opcional
-      if (onAccess) {
-        onAccess(prop);
-      }
-      
-      // Retornar la propiedad de la instancia real
-      return Reflect.get(instance, prop, receiver);
-    },
-    
-    set(target, prop, value, receiver) {
-      if (!instance) {
-        instance = factory();
-      }
-      
-      return Reflect.set(instance, prop, value, receiver);
+      return Reflect.get(instance, prop);
     }
   });
 }
 
-// Uso del proxy lazy
+// Uso práctico
 class ExpensiveService {
   constructor() {
-    console.log('ExpensiveService: Heavy initialization...');
-    // Simulación de inicialización costosa
-    this.loadConfiguration();
-    this.connectToServices();
+    console.log('Heavy initialization...');
+    // Operación costosa
   }
   
-  private loadConfiguration(): void {
-    console.log('Loading configuration files...');
-  }
-  
-  private connectToServices(): void {
-    console.log('Connecting to external services...');
-  }
-  
-  doWork(): void {
-    console.log('Doing actual work');
+  process(): void {
+    console.log('Processing...');
   }
 }
 
-// Crear servicio lazy
-const lazyService = createLazyProxy(
-  () => new ExpensiveService(),
-  (prop) => console.log(`Accessing property: ${String(prop)}`)
-);
-
-// El servicio NO se crea hasta que se usa
-console.log('Service created but not initialized');
-// ... más código ...
-lazyService.doWork(); // AQUÍ se inicializa
+// El servicio no se inicializa hasta que se usa
+const service = lazyProxy(() => new ExpensiveService());
+// ... código ...
+service.process(); // Se inicializa AQUÍ
 
 // ============================================
-// EJEMPLO 3: Lazy Loading de Módulos/Componentes
+// EJEMPLO 3: Lazy Loading de Módulos
 // ============================================
 
-// Sistema de módulos con carga lazy
+// Sistema simple de módulos lazy
 class ModuleLoader {
   private modules = new Map<string, any>();
   private loaders = new Map<string, () => Promise<any>>();
   
-  // Registrar un módulo para carga lazy
   register(name: string, loader: () => Promise<any>): void {
     this.loaders.set(name, loader);
   }
   
-  // Cargar módulo cuando se necesite
   async load<T>(name: string): Promise<T> {
-    // Si ya está cargado, retornarlo
     if (this.modules.has(name)) {
-      console.log(`Module ${name} already loaded`);
       return this.modules.get(name);
     }
     
-    // Si no hay loader registrado, error
     const loader = this.loaders.get(name);
-    if (!loader) {
-      throw new Error(`No loader registered for module: ${name}`);
-    }
+    if (!loader) throw new Error(`Module ${name} not found`);
     
-    console.log(`Lazy loading module: ${name}`);
-    
-    try {
-      // Cargar el módulo
-      const module = await loader();
-      
-      // Cachear para futuros usos
-      this.modules.set(name, module);
-      
-      return module;
-    } catch (error) {
-      console.error(`Failed to load module ${name}:`, error);
-      throw error;
-    }
-  }
-  
-  // Pre-cargar módulos en background
-  async preload(names: string[]): Promise<void> {
-    console.log(`Preloading modules: ${names.join(', ')}`);
-    
-    const promises = names.map(name => 
-      this.load(name).catch(err => 
-        console.error(`Failed to preload ${name}:`, err)
-      )
-    );
-    
-    await Promise.all(promises);
-  }
-  
-  // Verificar si un módulo está cargado
-  isLoaded(name: string): boolean {
-    return this.modules.has(name);
-  }
-  
-  // Descargar módulo para liberar memoria
-  unload(name: string): void {
-    if (this.modules.has(name)) {
-      console.log(`Unloading module: ${name}`);
-      const module = this.modules.get(name);
-      
-      // Si el módulo tiene método de limpieza, llamarlo
-      if (module && typeof module.dispose === 'function') {
-        module.dispose();
-      }
-      
-      this.modules.delete(name);
-    }
+    const module = await loader();
+    this.modules.set(name, module);
+    return module;
   }
 }
 
-// Ejemplo de uso
-const moduleLoader = new ModuleLoader();
+// Uso práctico
+const loader = new ModuleLoader();
 
-// Registrar módulos
-moduleLoader.register('charts', async () => {
-  console.log('Loading charts library...');
-  // Simular carga de librería pesada
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  return {
-    renderChart: (data: any) => console.log('Rendering chart', data),
-    dispose: () => console.log('Disposing chart resources')
-  };
+// Registrar módulos para carga lazy
+loader.register('charts', async () => {
+  // Solo se carga cuando se necesita
+  const module = await import('./charts');
+  return module.default;
 });
 
-moduleLoader.register('pdf', async () => {
-  console.log('Loading PDF library...');
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  return {
-    generatePDF: (content: string) => console.log('Generating PDF', content)
-  };
+loader.register('pdf', async () => {
+  const module = await import('./pdf');
+  return module.default;
 });
 
-// Uso lazy - solo se carga cuando se necesita
-async function generateReport(includeCharts: boolean) {
-  const pdfModule = await moduleLoader.load('pdf');
-  
-  if (includeCharts) {
-    const chartsModule = await moduleLoader.load('charts');
-    chartsModule.renderChart({ /* data */ });
+// Cargar solo lo necesario
+async function generateReport(withCharts: boolean) {
+  if (withCharts) {
+    const charts = await loader.load('charts');
+    charts.render();
   }
   
-  pdfModule.generatePDF('Report content');
+  const pdf = await loader.load('pdf');
+  pdf.generate();
 }
 
 // ============================================
-// EJEMPLO 4: Virtual Scrolling / Windowing
+// EJEMPLO 4: Virtual Scrolling
 // ============================================
 
 // Renderizar solo elementos visibles en listas largas
 class VirtualList<T> {
-  private items: T[];
-  private itemHeight: number;
-  private containerHeight: number;
-  private scrollTop: number = 0;
-  private renderBuffer: number = 3; // Items extra para smooth scrolling
-  
   constructor(
-    items: T[],
-    itemHeight: number,
-    containerHeight: number
-  ) {
-    this.items = items;
-    this.itemHeight = itemHeight;
-    this.containerHeight = containerHeight;
-  }
+    private items: T[],
+    private itemHeight: number,
+    private containerHeight: number,
+    private scrollTop = 0
+  ) {}
   
-  // Calcular qué items son visibles
-  getVisibleItems(): VisibleItem<T>[] {
-    const startIndex = Math.max(
-      0,
-      Math.floor(this.scrollTop / this.itemHeight) - this.renderBuffer
+  getVisibleItems(): T[] {
+    const startIndex = Math.floor(this.scrollTop / this.itemHeight);
+    const endIndex = Math.ceil(
+      (this.scrollTop + this.containerHeight) / this.itemHeight
     );
     
-    const endIndex = Math.min(
-      this.items.length - 1,
-      Math.ceil((this.scrollTop + this.containerHeight) / this.itemHeight) + this.renderBuffer
-    );
-    
-    console.log(`Rendering items ${startIndex} to ${endIndex} of ${this.items.length}`);
-    
-    const visibleItems: VisibleItem<T>[] = [];
-    
-    for (let i = startIndex; i <= endIndex; i++) {
-      visibleItems.push({
-        index: i,
-        item: this.items[i],
-        top: i * this.itemHeight,
-        height: this.itemHeight
-      });
-    }
-    
-    return visibleItems;
+    // Solo retorna los items visibles en lugar de todos
+    return this.items.slice(startIndex, endIndex);
   }
   
-  // Actualizar posición de scroll
   setScrollTop(scrollTop: number): void {
     this.scrollTop = scrollTop;
   }
-  
-  // Obtener altura total de la lista
-  getTotalHeight(): number {
-    return this.items.length * this.itemHeight;
-  }
-  
-  // Obtener estadísticas de renderizado
-  getRenderStats(): RenderStats {
-    const visible = this.getVisibleItems();
-    
-    return {
-      totalItems: this.items.length,
-      visibleItems: visible.length,
-      startIndex: visible[0]?.index || 0,
-      endIndex: visible[visible.length - 1]?.index || 0,
-      memoryUsage: `${((visible.length / this.items.length) * 100).toFixed(2)}%`
-    };
-  }
 }
+
+// Uso: renderizar solo 20 items visibles de 10,000
+const list = new VirtualList(
+  Array.from({ length: 10000 }, (_, i) => `Item ${i}`),
+  50,  // altura de cada item
+  500  // altura del contenedor
+);
+
+// Solo obtiene ~10 items en lugar de 10,000
+const visibleItems = list.getVisibleItems();
 
 // ============================================
 // EJEMPLO 5: Progressive Data Loading
 // ============================================
 
-// Cargar datos en chunks para mejorar perceived performance
-class ProgressiveDataLoader<T> {
-  private data: T[] = [];
-  private loadedChunks = new Set<number>();
-  private chunkSize: number;
-  private totalItems: number;
-  private loadChunk: (offset: number, limit: number) => Promise<T[]>;
+// Cargar datos en chunks progresivamente
+class ChunkedLoader<T> {
+  private cache = new Map<number, T[]>();
   
-  constructor(options: {
-    totalItems: number;
-    chunkSize: number;
-    loadChunk: (offset: number, limit: number) => Promise<T[]>;
-  }) {
-    this.totalItems = options.totalItems;
-    this.chunkSize = options.chunkSize;
-    this.loadChunk = options.loadChunk;
-    
-    // Pre-allocar array
-    this.data = new Array(this.totalItems);
-  }
+  constructor(
+    private chunkSize: number,
+    private loadChunk: (page: number) => Promise<T[]>
+  ) {}
   
-  // Obtener item con carga lazy
-  async getItem(index: number): Promise<T | undefined> {
-    if (index < 0 || index >= this.totalItems) {
-      return undefined;
+  async getPage(page: number): Promise<T[]> {
+    if (this.cache.has(page)) {
+      return this.cache.get(page)!;
     }
     
-    // Si ya está cargado, retornarlo
-    if (this.data[index] !== undefined) {
-      return this.data[index];
-    }
+    const data = await this.loadChunk(page);
+    this.cache.set(page, data);
     
-    // Cargar el chunk que contiene este item
-    await this.ensureChunkLoaded(index);
+    // Prefetch siguiente página
+    this.prefetch(page + 1);
     
-    return this.data[index];
+    return data;
   }
   
-  // Obtener rango de items
-  async getRange(start: number, end: number): Promise<T[]> {
-    const promises: Promise<void>[] = [];
-    
-    // Determinar qué chunks necesitamos
-    const startChunk = Math.floor(start / this.chunkSize);
-    const endChunk = Math.floor(end / this.chunkSize);
-    
-    for (let chunk = startChunk; chunk <= endChunk; chunk++) {
-      if (!this.loadedChunks.has(chunk)) {
-        promises.push(this.loadChunkData(chunk));
-      }
+  private async prefetch(page: number): Promise<void> {
+    if (!this.cache.has(page)) {
+      this.loadChunk(page).then(data => {
+        this.cache.set(page, data);
+      });
     }
-    
-    // Cargar chunks en paralelo
-    await Promise.all(promises);
-    
-    // Retornar el rango solicitado
-    return this.data.slice(start, end + 1).filter(item => item !== undefined);
-  }
-  
-  // Cargar un chunk específico
-  private async loadChunkData(chunkIndex: number): Promise<void> {
-    if (this.loadedChunks.has(chunkIndex)) {
-      return;
-    }
-    
-    const offset = chunkIndex * this.chunkSize;
-    const limit = Math.min(this.chunkSize, this.totalItems - offset);
-    
-    console.log(`Loading chunk ${chunkIndex} (items ${offset}-${offset + limit - 1})`);
-    
-    try {
-      const chunkData = await this.loadChunk(offset, limit);
-      
-      // Insertar datos en las posiciones correctas
-      for (let i = 0; i < chunkData.length; i++) {
-        this.data[offset + i] = chunkData[i];
-      }
-      
-      this.loadedChunks.add(chunkIndex);
-    } catch (error) {
-      console.error(`Failed to load chunk ${chunkIndex}:`, error);
-      throw error;
-    }
-  }
-  
-  // Asegurar que el chunk está cargado
-  private async ensureChunkLoaded(index: number): Promise<void> {
-    const chunkIndex = Math.floor(index / this.chunkSize);
-    await this.loadChunkData(chunkIndex);
-  }
-  
-  // Pre-cargar chunks adyacentes
-  async prefetchAround(index: number, radius: number = 1): Promise<void> {
-    const centerChunk = Math.floor(index / this.chunkSize);
-    const promises: Promise<void>[] = [];
-    
-    for (let i = -radius; i <= radius; i++) {
-      const chunkIndex = centerChunk + i;
-      
-      if (chunkIndex >= 0 && chunkIndex < Math.ceil(this.totalItems / this.chunkSize)) {
-        if (!this.loadedChunks.has(chunkIndex)) {
-          promises.push(this.loadChunkData(chunkIndex));
-        }
-      }
-    }
-    
-    await Promise.all(promises);
-  }
-  
-  // Obtener estadísticas de carga
-  getLoadStats(): LoadStats {
-    const totalChunks = Math.ceil(this.totalItems / this.chunkSize);
-    const loadedItems = Array.from(this.loadedChunks).reduce(
-      (sum, chunk) => sum + Math.min(
-        this.chunkSize,
-        this.totalItems - (chunk * this.chunkSize)
-      ),
-      0
-    );
-    
-    return {
-      totalChunks,
-      loadedChunks: this.loadedChunks.size,
-      loadProgress: `${((this.loadedChunks.size / totalChunks) * 100).toFixed(2)}%`,
-      loadedItems,
-      totalItems: this.totalItems,
-      itemsProgress: `${((loadedItems / this.totalItems) * 100).toFixed(2)}%`
-    };
   }
 }
+
+// Uso: cargar datos de API en chunks
+const loader = new ChunkedLoader(20, async (page) => {
+  const response = await fetch(`/api/data?page=${page}&size=20`);
+  return response.json();
+});
+
+// Carga solo la página 1 y prefetch la 2
+const firstPage = await loader.getPage(1);
 
 // Interfaces auxiliares
-interface MemoizeOptions {
-  maxSize?: number;
-  ttl?: number;
-  keyGenerator?: (args: any[]) => string;
-}
-
-interface CachedValue<T> {
-  value: T;
-  timestamp: number;
-}
-
-interface CacheStats {
-  hits?: number;
-  misses?: number;
-  hitRate?: string;
-  cacheSize?: number;
-  size?: number;
-  maxSize?: number;
-  utilization?: string;
-}
-
-interface ProcessingOptions {
-  sortOrder: 'asc' | 'desc';
-  minValue: number;
-  maxValue: number;
-}
-
-interface ProcessingResult {
-  processedData: number[];
-  statistics: any;
-  options: ProcessingOptions;
-}
-
-interface UserProfile {
+interface User {
   id: string;
   name: string;
-  email: string;
-  avatar: string;
-  settings: any;
-  history: any[];
-}
-
-interface VisibleItem<T> {
-  index: number;
-  item: T;
-  top: number;
-  height: number;
-}
-
-interface RenderStats {
-  totalItems: number;
-  visibleItems: number;
-  startIndex: number;
-  endIndex: number;
-  memoryUsage: string;
-}
-
-interface LoadStats {
-  totalChunks: number;
-  loadedChunks: number;
-  loadProgress: string;
-  loadedItems: number;
-  totalItems: number;
-  itemsProgress: string;
 }
 
 // Clases simuladas para los ejemplos
 class DatabaseConnection {
-  constructor(private type: string) {
-    console.log(`Creating ${type} database connection...`);
-  }
-  
   execute(sql: string): any {
-    console.log(`Executing on ${this.type}: ${sql}`);
-  }
-  
-  close(): void {
-    console.log(`Closing ${this.type} connection`);
+    console.log(`Executing: ${sql}`);
   }
 }
 
 class CacheConnection {
-  constructor(private type: string) {
-    console.log(`Creating ${type} cache connection...`);
-  }
-  
   get(key: string): any {
-    console.log(`Getting ${key} from ${this.type}`);
-  }
-  
-  close(): void {
-    console.log(`Closing ${this.type} connection`);
+    console.log(`Getting: ${key}`);
   }
 }
+
+class AnalyticsService {
+  constructor() {
+    console.log('Analytics initialized');
+  }
+}
+
+declare function fetch(url: string): any;
 ```
 
 ### Mejores prácticas de optimización:
