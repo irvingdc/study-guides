@@ -448,3 +448,169 @@ declare const database: any;
 6. **Testabilidad**: Los métodos extraídos deben ser fáciles de testear
 
 Extract Method es la base de muchas otras refactorizaciones y es esencial para mantener el código limpio y mantenible.
+
+---
+
+## Técnicas de Refactorización Funcional
+
+### Replace Loop with Pipeline
+
+```typescript
+// ❌ Bucles imperativos
+function processOrders(orders: Order[]): ProcessedOrder[] {
+  const result = [];
+  for (const order of orders) {
+    if (order.status === 'active') {
+      const processed = {
+        ...order,
+        total: order.items.reduce((sum, item) => sum + item.price, 0),
+        tax: order.items.reduce((sum, item) => sum + item.price, 0) * 0.08
+      };
+      if (processed.total > 100) {
+        result.push(processed);
+      }
+    }
+  }
+  return result;
+}
+
+// ✅ Pipeline funcional
+import { pipe, filter, map } from 'fp-ts/Array';
+
+const processOrders = (orders: Order[]): ProcessedOrder[] =>
+  pipe(
+    orders,
+    filter(order => order.status === 'active'),
+    map(order => ({
+      ...order,
+      total: calculateTotal(order.items),
+      tax: calculateTax(order.items)
+    })),
+    filter(order => order.total > 100)
+  );
+
+const calculateTotal = (items: Item[]): number =>
+  items.reduce((sum, item) => sum + item.price, 0);
+
+const calculateTax = (items: Item[]): number =>
+  calculateTotal(items) * 0.08;
+```
+
+### Replace Conditional with Function Map
+
+```typescript
+// ❌ Condicionales múltiples
+function getDiscount(customerType: string): number {
+  if (customerType === 'vip') return 0.20;
+  if (customerType === 'premium') return 0.10;
+  if (customerType === 'regular') return 0.05;
+  return 0;
+}
+
+// ✅ Map de funciones
+const discountStrategies: Record<string, () => number> = {
+  vip: () => 0.20,
+  premium: () => 0.10,
+  regular: () => 0.05,
+  default: () => 0
+};
+
+const getDiscount = (customerType: string): number =>
+  (discountStrategies[customerType] || discountStrategies.default)();
+```
+
+### Replace Mutation with Transformation
+
+```typescript
+// ❌ Mutación de datos
+function applyDiscounts(order: Order): void {
+  order.subtotal = calculateSubtotal(order.items);
+  order.discount = order.subtotal * 0.1;
+  order.tax = (order.subtotal - order.discount) * 0.08;
+  order.total = order.subtotal - order.discount + order.tax;
+}
+
+// ✅ Transformación inmutable
+const applyDiscounts = (order: Order): Order => {
+  const subtotal = calculateSubtotal(order.items);
+  const discount = subtotal * 0.1;
+  const tax = (subtotal - discount) * 0.08;
+  
+  return {
+    ...order,
+    subtotal,
+    discount,
+    tax,
+    total: subtotal - discount + tax
+  };
+};
+```
+
+### Replace Class with Function Module
+
+```typescript
+// ❌ Clase con estado mutable
+class ShoppingCart {
+  private items: Item[] = [];
+  
+  addItem(item: Item): void {
+    this.items.push(item);
+  }
+  
+  getTotal(): number {
+    return this.items.reduce((sum, item) => sum + item.price, 0);
+  }
+}
+
+// ✅ Módulo funcional inmutable
+type Cart = {
+  readonly items: readonly Item[];
+};
+
+const createCart = (): Cart => ({ items: [] });
+
+const addItem = (cart: Cart, item: Item): Cart => ({
+  ...cart,
+  items: [...cart.items, item]
+});
+
+const getTotal = (cart: Cart): number =>
+  cart.items.reduce((sum, item) => sum + item.price, 0);
+
+// Uso
+let cart = createCart();
+cart = addItem(cart, { id: '1', name: 'Book', price: 20 });
+const total = getTotal(cart);
+```
+
+### Extract Pure Function from Method
+
+```typescript
+// ❌ Método con efectos secundarios
+class OrderService {
+  processOrder(order: Order): void {
+    const total = order.items.reduce((sum, item) => sum + item.price, 0);
+    const tax = total * 0.08;
+    const finalTotal = total + tax;
+    
+    this.database.save({ ...order, total: finalTotal });
+    this.emailService.send(order.customerEmail, 'Order processed');
+  }
+}
+
+// ✅ Funciones puras extraídas
+const calculateOrderTotal = (items: Item[]): number =>
+  items.reduce((sum, item) => sum + item.price, 0);
+
+const calculateTax = (amount: number, rate: number = 0.08): number =>
+  amount * rate;
+
+const processOrder = (deps: Dependencies) => async (order: Order): Promise<void> => {
+  const total = calculateOrderTotal(order.items);
+  const tax = calculateTax(total);
+  const finalTotal = total + tax;
+  
+  await deps.database.save({ ...order, total: finalTotal });
+  await deps.emailService.send(order.customerEmail, 'Order processed');
+};
+```

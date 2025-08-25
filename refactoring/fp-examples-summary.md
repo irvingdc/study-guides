@@ -2,7 +2,7 @@
 
 ## Files Updated with FP Examples
 
-### ✅ Completed Files (3)
+### ✅ Completed Files (7)
 
 1. **01-solid-principles.md**
    - SRP: Pure functions and composition
@@ -27,28 +27,51 @@
    - Dead Code: Tree shaking benefits
    - Comments: Self-documenting pure functions
 
-### 📝 Remaining Files to Update (7)
+4. **04-refactoring-techniques.md** ✅
+   - Replace Loop with Pipeline: map/filter/reduce
+   - Replace Conditional with Function Map: dispatch tables
+   - Replace Mutation with Transformation: immutable updates
+   - Extract Pure Function: isolate side effects
+   - Compose Functions: build complex behavior
+   - Replace Class with Module: functional modules
 
-4. **04-refactoring-techniques.md**
-   - Needs: Replace loops with pipelines, replace conditionals with function maps
+5. **05-testing.md** ✅
+   - Testing Pure Functions: deterministic, no mocks needed
+   - Property-Based Testing: fast-check library
+   - Testing with Monads: Either/Option patterns
+   - Testing Pipelines: composition verification
+   - Functional Dependency Injection: dependencies as arguments
+   - Testing Function Composition: verify transformations
 
-5. **05-testing.md**
-   - Needs: Property-based testing, testing pure functions
+6. **06-performance.md** ✅
+   - Memoization with fp-ts: functional caching
+   - Lazy Evaluation: generators and infinite sequences
+   - Transducers: efficient composition without intermediates
+   - Structural Sharing: Immer and immutable updates
+   - Trampolining: safe recursion without stack overflow
+   - Parallel Processing: batch processing with FP
 
-6. **06-performance.md**
-   - Needs: Memoization, lazy evaluation, transducers
+7. **07-typescript-advanced.md** ✅
+   - Algebraic Data Types: Sum and Product types
+   - Functors and Monads: Option, Either, IO
+   - Higher-Kinded Types: HKT simulation
+   - Lenses: immutable nested updates
+   - IO Monad: controlled side effects
+   - Type-Level Programming: advanced type manipulation
 
-7. **07-typescript-advanced.md**
-   - Needs: Advanced FP types, monads, functors
+### 📝 Remaining Files (3)
 
 8. **08-debugging.md**
-   - Needs: Debugging pure functions, tracing pipelines
+   - Could add: Debugging pure functions, tracing pipelines
+   - Status: Optional - depends on existing content
 
 9. **09-best-practices.md**
-   - Needs: FP best practices, immutability patterns
+   - Could add: FP best practices, immutability patterns
+   - Status: Optional - depends on existing content
 
 10. **10-interview-questions.md**
-    - Needs: FP interview questions and answers
+    - Could add: FP interview questions and answers
+    - Status: Optional - depends on existing content
 
 ## Key FP Concepts Added
 

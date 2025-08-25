@@ -556,3 +556,301 @@ declare function fetch(url: string): Promise<{ json(): Promise<unknown> }>;
 7. **Exhaustive checking**: Usa 'never' para garantizar que manejas todos los casos
 
 TypeScript avanzado te permite escribir código más seguro y expresivo, detectando errores en tiempo de compilación que de otra manera aparecerían en producción.
+
+---
+
+## 7.4 Functional Programming Types en TypeScript
+
+### Tipos Algebraicos de Datos (ADTs)
+
+```typescript
+// Sum Types (Tagged Unions)
+type Result<T, E> = 
+  | { type: 'ok'; value: T }
+  | { type: 'error'; error: E };
+
+const divide = (a: number, b: number): Result<number, string> =>
+  b === 0
+    ? { type: 'error', error: 'Division by zero' }
+    : { type: 'ok', value: a / b };
+
+// Pattern matching con exhaustive checking
+const handleResult = <T, E>(result: Result<T, E>): string => {
+  switch (result.type) {
+    case 'ok': return `Success: ${result.value}`;
+    case 'error': return `Error: ${result.error}`;
+    // TypeScript verifica que todos los casos están cubiertos
+  }
+};
+
+// Product Types con Branded Types
+type UserId = string & { __brand: 'UserId' };
+type PostId = string & { __brand: 'PostId' };
+
+const makeUserId = (id: string): UserId => id as UserId;
+const makePostId = (id: string): PostId => id as PostId;
+
+// Previene mezclar IDs
+function getUser(id: UserId) { /* ... */ }
+// getUser(makePostId('123')); // Error! Type-safe
+```
+
+### Functors y Monads en TypeScript
+
+```typescript
+// Functor: estructura que puede ser mapeada
+interface Functor<T> {
+  map<U>(fn: (value: T) => U): Functor<U>;
+}
+
+// Option/Maybe Monad
+class Option<T> implements Functor<T> {
+  private constructor(private value: T | null) {}
+  
+  static some<T>(value: T): Option<T> {
+    return new Option(value);
+  }
+  
+  static none<T>(): Option<T> {
+    return new Option<T>(null);
+  }
+  
+  map<U>(fn: (value: T) => U): Option<U> {
+    return this.value === null 
+      ? Option.none<U>()
+      : Option.some(fn(this.value));
+  }
+  
+  flatMap<U>(fn: (value: T) => Option<U>): Option<U> {
+    return this.value === null 
+      ? Option.none<U>()
+      : fn(this.value);
+  }
+  
+  getOrElse(defaultValue: T): T {
+    return this.value ?? defaultValue;
+  }
+}
+
+// Uso de Option
+const safeDivide = (a: number, b: number): Option<number> =>
+  b === 0 ? Option.none() : Option.some(a / b);
+
+const result = Option.some(10)
+  .flatMap(x => safeDivide(x, 2))
+  .map(x => x * 3)
+  .getOrElse(0); // 15
+
+// Either Monad para manejo de errores
+class Either<L, R> {
+  private constructor(
+    private left: L | null,
+    private right: R | null
+  ) {}
+  
+  static left<L, R>(value: L): Either<L, R> {
+    return new Either<L, R>(value, null);
+  }
+  
+  static right<L, R>(value: R): Either<L, R> {
+    return new Either<L, R>(null, value);
+  }
+  
+  map<U>(fn: (value: R) => U): Either<L, U> {
+    return this.right !== null
+      ? Either.right<L, U>(fn(this.right))
+      : Either.left<L, U>(this.left!);
+  }
+  
+  flatMap<U>(fn: (value: R) => Either<L, U>): Either<L, U> {
+    return this.right !== null
+      ? fn(this.right)
+      : Either.left<L, U>(this.left!);
+  }
+  
+  fold<T>(leftFn: (l: L) => T, rightFn: (r: R) => T): T {
+    return this.left !== null 
+      ? leftFn(this.left)
+      : rightFn(this.right!);
+  }
+}
+```
+
+### Higher-Kinded Types (simulación)
+
+```typescript
+// TypeScript no soporta HKT nativamente, pero podemos simular
+interface HKT<URI, A = any> {
+  _URI: URI;
+  _A: A;
+}
+
+// Type class Functor
+interface Functor1<F> {
+  readonly URI: F;
+  map: <A, B>(fa: HKT<F, A>, f: (a: A) => B) => HKT<F, B>;
+}
+
+// Implementación para Array
+const arrayFunctor: Functor1<'Array'> = {
+  URI: 'Array',
+  map: (fa, f) => fa.map(f)
+};
+
+// Kleisli composition
+type Kleisli<M, A, B> = (a: A) => HKT<M, B>;
+
+const composeK = <M, A, B, C>(
+  f: Kleisli<M, B, C>,
+  g: Kleisli<M, A, B>
+): Kleisli<M, A, C> => 
+  (a: A) => flatMap(g(a), f);
+```
+
+### Lenses para Inmutabilidad
+
+```typescript
+// Lens para acceso y modificación inmutable
+class Lens<S, A> {
+  constructor(
+    private getter: (s: S) => A,
+    private setter: (a: A) => (s: S) => S
+  ) {}
+  
+  get(s: S): A {
+    return this.getter(s);
+  }
+  
+  set(a: A): (s: S) => S {
+    return this.setter(a);
+  }
+  
+  modify(f: (a: A) => A): (s: S) => S {
+    return (s: S) => this.setter(f(this.getter(s)))(s);
+  }
+  
+  compose<B>(other: Lens<A, B>): Lens<S, B> {
+    return new Lens(
+      (s: S) => other.get(this.get(s)),
+      (b: B) => (s: S) => this.modify(a => other.set(b)(a))(s)
+    );
+  }
+}
+
+// Uso de Lenses
+interface Address {
+  street: string;
+  city: string;
+}
+
+interface Person {
+  name: string;
+  address: Address;
+}
+
+const addressLens = new Lens<Person, Address>(
+  person => person.address,
+  address => person => ({ ...person, address })
+);
+
+const streetLens = new Lens<Address, string>(
+  address => address.street,
+  street => address => ({ ...address, street })
+);
+
+const personStreetLens = addressLens.compose(streetLens);
+
+const person: Person = {
+  name: 'John',
+  address: { street: '123 Main', city: 'NYC' }
+};
+
+const updated = personStreetLens.set('456 Elm')(person);
+// Inmutable update!
+```
+
+### IO Monad para Side Effects
+
+```typescript
+// IO Monad encapsula side effects
+class IO<T> {
+  constructor(private effect: () => T) {}
+  
+  static of<T>(value: T): IO<T> {
+    return new IO(() => value);
+  }
+  
+  map<U>(fn: (value: T) => U): IO<U> {
+    return new IO(() => fn(this.effect()));
+  }
+  
+  flatMap<U>(fn: (value: T) => IO<U>): IO<U> {
+    return new IO(() => fn(this.effect()).run());
+  }
+  
+  run(): T {
+    return this.effect();
+  }
+}
+
+// Uso: side effects controlados
+const readLine = (): IO<string> => 
+  new IO(() => prompt('Enter text:') || '');
+
+const writeLine = (text: string): IO<void> =>
+  new IO(() => console.log(text));
+
+const program = readLine()
+  .map(text => text.toUpperCase())
+  .flatMap(writeLine);
+
+// Side effects solo ocurren al ejecutar
+// program.run();
+```
+
+### Type-Level Programming
+
+```typescript
+// Recursión a nivel de tipos
+type Length<T extends readonly any[]> = T['length'];
+type L1 = Length<[1, 2, 3]>; // 3
+
+// Conditional types recursivos
+type Reverse<T extends any[]> = T extends [...infer Rest, infer Last]
+  ? [Last, ...Reverse<Rest>]
+  : [];
+
+type R1 = Reverse<[1, 2, 3]>; // [3, 2, 1]
+
+// Builder pattern type-safe
+class Builder<T = {}> {
+  constructor(private value: T) {}
+  
+  with<K extends string, V>(
+    key: K,
+    val: V
+  ): Builder<T & Record<K, V>> {
+    return new Builder({ ...this.value, [key]: val });
+  }
+  
+  build(): T {
+    return this.value;
+  }
+}
+
+// Type acumula propiedades agregadas
+const config = new Builder({})
+  .with('host', 'localhost')
+  .with('port', 3000)
+  .build(); // { host: string; port: number }
+```
+
+### Mejores Prácticas FP en TypeScript
+
+1. **Preferir inmutabilidad**: Usar `readonly` y spreads
+2. **Evitar clases para datos**: Usar types/interfaces
+3. **Funciones puras**: Sin side effects
+4. **Composición sobre herencia**: Componer funciones pequeñas
+5. **Type-driven development**: Diseñar tipos primero
+6. **Usar librerías FP**: fp-ts, io-ts, monocle-ts
+7. **Exhaustive checking**: Aprovechar el sistema de tipos

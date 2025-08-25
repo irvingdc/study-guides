@@ -512,3 +512,310 @@ class MockEmailService implements EmailService {
 8. **Tests de regresión**: Agregar test cuando se corrige un bug
 
 El testing bien hecho es fundamental para mantener código de calidad y poder refactorizar con confianza.
+
+---
+
+## Testing Funcional
+
+### Testing de Funciones Puras
+
+```typescript
+// Las funciones puras son triviales de testear
+const add = (a: number, b: number): number => a + b;
+const multiply = (a: number, b: number): number => a * b;
+
+describe('Pure Functions', () => {
+  it('should add two numbers', () => {
+    expect(add(2, 3)).toBe(5);
+    expect(add(-1, 1)).toBe(0);
+    expect(add(0, 0)).toBe(0);
+  });
+  
+  it('should be commutative', () => {
+    expect(add(3, 4)).toBe(add(4, 3));
+  });
+});
+
+// Testing de transformaciones
+const applyDiscount = (price: number, discount: number): number =>
+  price * (1 - discount);
+
+const calculateTotal = (items: Item[]): number =>
+  items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+describe('Price Calculations', () => {
+  it('should apply discount correctly', () => {
+    expect(applyDiscount(100, 0.1)).toBe(90);
+    expect(applyDiscount(50, 0.2)).toBe(40);
+  });
+  
+  it('should calculate total for items', () => {
+    const items = [
+      { price: 10, quantity: 2 },
+      { price: 5, quantity: 3 }
+    ];
+    expect(calculateTotal(items)).toBe(35);
+  });
+});
+```
+
+### Property-Based Testing
+
+```typescript
+import * as fc from 'fast-check';
+
+// Test propiedades matemáticas
+describe('Property-based tests', () => {
+  it('addition should be commutative', () => {
+    fc.assert(
+      fc.property(fc.integer(), fc.integer(), (a, b) => {
+        return add(a, b) === add(b, a);
+      })
+    );
+  });
+  
+  it('addition should be associative', () => {
+    fc.assert(
+      fc.property(fc.integer(), fc.integer(), fc.integer(), (a, b, c) => {
+        return add(add(a, b), c) === add(a, add(b, c));
+      })
+    );
+  });
+  
+  it('discount should never make price negative', () => {
+    fc.assert(
+      fc.property(
+        fc.float({ min: 0, max: 10000 }),
+        fc.float({ min: 0, max: 1 }),
+        (price, discount) => {
+          return applyDiscount(price, discount) >= 0;
+        }
+      )
+    );
+  });
+});
+
+// Test de invariantes
+const sort = <T>(items: T[], compare: (a: T, b: T) => number): T[] =>
+  [...items].sort(compare);
+
+describe('Sorting properties', () => {
+  it('should preserve length', () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (arr) => {
+        const sorted = sort(arr, (a, b) => a - b);
+        return sorted.length === arr.length;
+      })
+    );
+  });
+  
+  it('should contain same elements', () => {
+    fc.assert(
+      fc.property(fc.array(fc.integer()), (arr) => {
+        const sorted = sort(arr, (a, b) => a - b);
+        const originalSet = new Set(arr);
+        const sortedSet = new Set(sorted);
+        return [...originalSet].every(x => sortedSet.has(x));
+      })
+    );
+  });
+});
+```
+
+### Testing con Monads
+
+```typescript
+import { Either, left, right, isRight } from 'fp-ts/Either';
+import { Option, some, none, isSome } from 'fp-ts/Option';
+
+// Funciones que retornan Either
+const divide = (a: number, b: number): Either<string, number> =>
+  b === 0 ? left('Division by zero') : right(a / b);
+
+const parseEmail = (email: string): Either<string, string> =>
+  email.includes('@') 
+    ? right(email.toLowerCase())
+    : left('Invalid email format');
+
+describe('Either-based functions', () => {
+  it('should handle success case', () => {
+    const result = divide(10, 2);
+    expect(isRight(result)).toBe(true);
+    if (isRight(result)) {
+      expect(result.right).toBe(5);
+    }
+  });
+  
+  it('should handle error case', () => {
+    const result = divide(10, 0);
+    expect(isRight(result)).toBe(false);
+    if (!isRight(result)) {
+      expect(result.left).toBe('Division by zero');
+    }
+  });
+});
+
+// Testing Option
+const findUser = (id: string): Option<User> =>
+  id === 'valid' ? some({ id, name: 'John' }) : none;
+
+describe('Option-based functions', () => {
+  it('should return Some for valid input', () => {
+    const result = findUser('valid');
+    expect(isSome(result)).toBe(true);
+  });
+  
+  it('should return None for invalid input', () => {
+    const result = findUser('invalid');
+    expect(isSome(result)).toBe(false);
+  });
+});
+```
+
+### Testing de Pipelines
+
+```typescript
+import { pipe } from 'fp-ts/function';
+import { map, filter } from 'fp-ts/Array';
+
+// Pipeline de transformaciones
+const processOrders = (orders: Order[]) =>
+  pipe(
+    orders,
+    filter(order => order.status === 'active'),
+    map(order => ({
+      ...order,
+      total: calculateTotal(order.items)
+    })),
+    filter(order => order.total > 100)
+  );
+
+describe('Pipeline testing', () => {
+  it('should filter and transform correctly', () => {
+    const orders = [
+      { id: '1', status: 'active', items: [{ price: 150 }] },
+      { id: '2', status: 'inactive', items: [{ price: 200 }] },
+      { id: '3', status: 'active', items: [{ price: 50 }] }
+    ];
+    
+    const result = processOrders(orders);
+    
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('1');
+    expect(result[0].total).toBe(150);
+  });
+  
+  // Test cada etapa del pipeline
+  it('should test pipeline stages', () => {
+    const orders = createTestOrders();
+    
+    // Test stage 1: filter active
+    const activeOrders = orders.filter(o => o.status === 'active');
+    expect(activeOrders).toHaveLength(2);
+    
+    // Test stage 2: calculate totals
+    const withTotals = activeOrders.map(o => ({
+      ...o,
+      total: calculateTotal(o.items)
+    }));
+    expect(withTotals[0].total).toBeDefined();
+    
+    // Test stage 3: filter by total
+    const expensive = withTotals.filter(o => o.total > 100);
+    expect(expensive.length).toBeLessThanOrEqual(withTotals.length);
+  });
+});
+```
+
+### Testing con Dependency Injection Funcional
+
+```typescript
+// Dependencias como parámetros
+type Dependencies = {
+  database: Database;
+  emailService: EmailService;
+  logger: Logger;
+};
+
+const createOrder = (deps: Dependencies) => async (orderData: OrderData): Promise<Order> => {
+  deps.logger.info('Creating order', orderData);
+  
+  const order = {
+    id: generateId(),
+    ...orderData,
+    createdAt: new Date()
+  };
+  
+  await deps.database.save('orders', order);
+  await deps.emailService.send(orderData.customerEmail, 'Order created');
+  
+  return order;
+};
+
+describe('Functional dependency injection', () => {
+  it('should create order with mocked dependencies', async () => {
+    const mockDeps: Dependencies = {
+      database: {
+        save: jest.fn().mockResolvedValue(undefined)
+      },
+      emailService: {
+        send: jest.fn().mockResolvedValue(undefined)
+      },
+      logger: {
+        info: jest.fn()
+      }
+    };
+    
+    const orderData = { customerEmail: 'test@example.com', items: [] };
+    const order = await createOrder(mockDeps)(orderData);
+    
+    expect(mockDeps.database.save).toHaveBeenCalledWith('orders', expect.objectContaining({
+      customerEmail: 'test@example.com'
+    }));
+    expect(mockDeps.emailService.send).toHaveBeenCalledWith(
+      'test@example.com',
+      'Order created'
+    );
+    expect(order.id).toBeDefined();
+  });
+});
+```
+
+### Testing de Composición de Funciones
+
+```typescript
+// Funciones componibles
+const addTax = (rate: number) => (amount: number): number =>
+  amount * (1 + rate);
+
+const applyDiscount = (discount: number) => (amount: number): number =>
+  amount * (1 - discount);
+
+const roundTo = (decimals: number) => (amount: number): number =>
+  Math.round(amount * Math.pow(10, decimals)) / Math.pow(10, decimals);
+
+// Composición
+const calculateFinalPrice = pipe(
+  applyDiscount(0.1),
+  addTax(0.08),
+  roundTo(2)
+);
+
+describe('Function composition', () => {
+  it('should compose functions correctly', () => {
+    expect(calculateFinalPrice(100)).toBe(97.20);
+  });
+  
+  it('should test individual functions', () => {
+    expect(applyDiscount(0.1)(100)).toBe(90);
+    expect(addTax(0.08)(90)).toBe(97.2);
+    expect(roundTo(2)(97.2)).toBe(97.20);
+  });
+  
+  it('should allow testing partial application', () => {
+    const tenPercentOff = applyDiscount(0.1);
+    expect(tenPercentOff(100)).toBe(90);
+    expect(tenPercentOff(50)).toBe(45);
+  });
+});
+```
