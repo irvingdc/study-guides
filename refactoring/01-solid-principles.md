@@ -163,6 +163,62 @@ class UserService {
     return user;
   }
 }
+
+// ============================================
+// ENFOQUE FUNCIONAL: SRP con funciones puras
+// ============================================
+
+// Tipos inmutables
+type User = {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly age: number;
+};
+
+// Funciones puras con responsabilidad única
+const createUser = (name: string, email: string, age: number): User => ({
+  id: generateId(),
+  name,
+  email,
+  age
+});
+
+// Validación como función pura
+const validateEmail = (email: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const validateAge = (age: number): boolean => 
+  age >= 18 && age <= 120;
+
+const validateUser = (user: User): Either<string[], User> => {
+  const errors: string[] = [];
+  if (!validateEmail(user.email)) errors.push('Invalid email');
+  if (!validateAge(user.age)) errors.push('Invalid age');
+  
+  return errors.length > 0 ? left(errors) : right(user);
+};
+
+// Persistencia como función
+const saveUser = (db: Database) => (user: User): Promise<void> =>
+  db.insert('users', user);
+
+// Email como función
+const sendWelcomeEmail = (emailService: EmailService) => (user: User): Promise<void> =>
+  emailService.send(user.email, 'Welcome!', `Hello ${user.name}`);
+
+// Composición funcional
+import { pipe } from 'fp-ts/function';
+import { chain } from 'fp-ts/TaskEither';
+
+const processNewUser = (deps: { db: Database; email: EmailService }) =>
+  (name: string, email: string, age: number) =>
+    pipe(
+      createUser(name, email, age),
+      validateUser,
+      chain(saveUser(deps.db)),
+      chain(sendWelcomeEmail(deps.email))
+    );
 ```
 
 ### Cómo identificar y refactorizar violaciones de SRP
@@ -286,6 +342,49 @@ console.log(calculator.calculate(100));  // 85
 // Agregar nuevo tipo sin modificar código existente
 calculator.setStrategy(new EmployeeDiscount());
 console.log(calculator.calculate(100));  // 70
+
+// ============================================
+// ENFOQUE FUNCIONAL: OCP con funciones de orden superior
+// ============================================
+
+// Funciones como ciudadanos de primera clase
+type DiscountFunction = (amount: number) => number;
+
+// Funciones de descuento base
+const regularDiscount: DiscountFunction = (amount) => amount * 0.95;
+const premiumDiscount: DiscountFunction = (amount) => amount * 0.90;
+const vipDiscount: DiscountFunction = (amount) => amount * 0.85;
+
+// Función de orden superior para combinar descuentos
+const combineDiscounts = (...discounts: DiscountFunction[]): DiscountFunction =>
+  (amount) => discounts.reduce((acc, discount) => discount(acc), amount);
+
+// Descuento condicional
+const conditionalDiscount = (
+  condition: (amount: number) => boolean,
+  discount: DiscountFunction
+): DiscountFunction =>
+  (amount) => condition(amount) ? discount(amount) : amount;
+
+// Crear nuevos descuentos sin modificar código existente
+const volumeDiscount = conditionalDiscount(
+  amount => amount > 1000,
+  amount => amount * 0.9
+);
+
+const seasonalDiscount = (season: string): DiscountFunction => {
+  const rates = { summer: 0.85, winter: 0.90, spring: 0.95, fall: 0.92 };
+  return (amount) => amount * (rates[season] || 1);
+};
+
+// Composición de descuentos
+const calculatePrice = combineDiscounts(
+  regularDiscount,
+  volumeDiscount,
+  seasonalDiscount('summer')
+);
+
+console.log(calculatePrice(1500)); // Aplica todos los descuentos
 ```
 
 ### Beneficios del OCP en este ejemplo:
@@ -435,6 +534,61 @@ class SMSNotificationSender implements NotificationSender {
     return true; // Siempre puede enviar (dividiendo)
   }
 }
+
+// ============================================
+// ENFOQUE FUNCIONAL: LSP con tipos algebraicos
+// ============================================
+
+// Tipos de datos algebraicos (ADTs) en lugar de herencia
+type Shape = 
+  | { type: 'rectangle'; width: number; height: number }
+  | { type: 'square'; side: number }
+  | { type: 'circle'; radius: number };
+
+// Funciones que funcionan con todos los tipos de forma predecible
+const area = (shape: Shape): number => {
+  switch (shape.type) {
+    case 'rectangle':
+      return shape.width * shape.height;
+    case 'square':
+      return shape.side * shape.side;
+    case 'circle':
+      return Math.PI * shape.radius * shape.radius;
+  }
+};
+
+const perimeter = (shape: Shape): number => {
+  switch (shape.type) {
+    case 'rectangle':
+      return 2 * (shape.width + shape.height);
+    case 'square':
+      return 4 * shape.side;
+    case 'circle':
+      return 2 * Math.PI * shape.radius;
+  }
+};
+
+// Transformaciones sin violar expectativas
+const scale = (factor: number) => (shape: Shape): Shape => {
+  switch (shape.type) {
+    case 'rectangle':
+      return { ...shape, width: shape.width * factor, height: shape.height * factor };
+    case 'square':
+      return { ...shape, side: shape.side * factor };
+    case 'circle':
+      return { ...shape, radius: shape.radius * factor };
+  }
+};
+
+// Uso seguro sin sorpresas
+const shapes: Shape[] = [
+  { type: 'rectangle', width: 5, height: 4 },
+  { type: 'square', side: 3 },
+  { type: 'circle', radius: 2 }
+];
+
+shapes.map(area); // Funciona correctamente para todas
+shapes.map(scale(2)); // Escala correctamente todas
 ```
 
 ### Reglas para cumplir LSP:
@@ -629,6 +783,68 @@ const reviewSystem = new CodeReviewSystem();
 reviewSystem.assignReview(dev);  // ✅ OK
 reviewSystem.assignReview(ai);   // ✅ OK
 // reviewSystem.assignReview(sales); // ❌ Error: sales no es Programmer
+
+// ============================================
+// ENFOQUE FUNCIONAL: ISP con composición de funciones
+// ============================================
+
+// Funciones pequeñas y enfocadas
+type Work = () => void;
+type Code = (project: string) => void;
+type Manage = (team: string[]) => void;
+type Sell = (product: string) => void;
+
+// Composición de capacidades
+type DeveloperCapabilities = {
+  work: Work;
+  code: Code;
+};
+
+type ManagerCapabilities = {
+  work: Work;
+  manage: Manage;
+};
+
+// Factory functions con aplicación parcial
+const createWorker = (name: string): { work: Work } => ({
+  work: () => console.log(`${name} is working`)
+});
+
+const withCoding = (name: string) => (worker: { work: Work }): DeveloperCapabilities => ({
+  ...worker,
+  code: (project) => console.log(`${name} coding ${project}`)
+});
+
+const withManaging = (name: string) => (worker: { work: Work }): ManagerCapabilities => ({
+  ...worker,
+  manage: (team) => console.log(`${name} managing ${team.join(', ')}`)
+});
+
+// Composición usando pipe
+import { pipe } from 'fp-ts/function';
+
+const createDeveloper = (name: string) => 
+  pipe(
+    createWorker(name),
+    withCoding(name)
+  );
+
+const createTechLead = (name: string) =>
+  pipe(
+    createWorker(name),
+    withCoding(name),
+    withManaging(name)
+  );
+
+// Uso
+const alice = createDeveloper('Alice');
+alice.work();
+alice.code('frontend');
+
+const bob = createTechLead('Bob');
+bob.work();
+bob.code('backend');
+bob.manage(['Alice', 'Charlie']);
 ```
 
 ### Técnicas para aplicar ISP:
@@ -806,6 +1022,83 @@ await orderServiceTest.createOrder(orderData); // Para tests
 // - Cambiar de Stripe a PayPal: solo cambiar la configuración
 // - Testing fácil con mocks
 // - OrderService no cambia nunca
+
+// ============================================
+// ENFOQUE FUNCIONAL: DIP con funciones de orden superior
+// ============================================
+
+// Tipos de efectos como parámetros
+type DatabaseOps = {
+  save: <T>(table: string, data: T) => Promise<void>;
+  find: <T>(table: string, id: string) => Promise<T | null>;
+};
+
+type EmailOps = {
+  send: (to: string, subject: string, body: string) => Promise<void>;
+};
+
+type PaymentOps = {
+  charge: (amount: number, method: string) => Promise<boolean>;
+};
+
+// Lógica de negocio pura con dependencias inyectadas
+const createOrder = (deps: {
+  db: DatabaseOps;
+  email: EmailOps;
+  payment: PaymentOps;
+}) => async (orderData: OrderData): Promise<Order> => {
+  const order = {
+    id: generateId(),
+    items: orderData.items,
+    total: calculateTotal(orderData.items)
+  };
+  
+  const paid = await deps.payment.charge(order.total, orderData.paymentMethod);
+  if (!paid) throw new Error('Payment failed');
+  
+  await deps.db.save('orders', order);
+  await deps.email.send(
+    orderData.customerEmail,
+    'Order Confirmation',
+    `Order ${order.id} confirmed`
+  );
+  
+  return order;
+};
+
+// Implementaciones para diferentes entornos
+const prodDeps = {
+  db: {
+    save: async (table, data) => mysqlClient.insert(table, data),
+    find: async (table, id) => mysqlClient.select(table, id)
+  },
+  email: {
+    send: async (to, subject, body) => sendgrid.send({ to, subject, body })
+  },
+  payment: {
+    charge: async (amount, method) => stripe.charge(amount, method)
+  }
+};
+
+const testDeps = {
+  db: {
+    save: async () => {},
+    find: async () => null
+  },
+  email: {
+    send: async () => console.log('Mock email sent')
+  },
+  payment: {
+    charge: async () => true
+  }
+};
+
+// Uso
+const processOrderProd = createOrder(prodDeps);
+const processOrderTest = createOrder(testDeps);
+
+await processOrderProd(orderData);
+await processOrderTest(orderData);
 ```
 
 ### Resumen de DIP:

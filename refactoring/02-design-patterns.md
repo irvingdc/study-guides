@@ -936,3 +936,167 @@ async function demonstrateSingletons() {
 5. **Global State**: Ten cuidado con el estado global mutable
 
 El Singleton es útil pero debe usarse con moderación. Muchas veces, lo que parece necesitar un Singleton puede resolverse mejor con inyección de dependencias o un contenedor IoC.
+
+---
+
+## Enfoques Funcionales para Design Patterns
+
+### Factory Pattern Funcional
+
+```typescript
+// Factory como función de orden superior
+type NotificationType = 'email' | 'sms' | 'push';
+type Notifier = (message: string, recipient: string) => Promise<void>;
+
+const notifierFactory = (type: NotificationType): Notifier => {
+  const notifiers: Record<NotificationType, Notifier> = {
+    email: async (msg, to) => console.log(`Email to ${to}: ${msg}`),
+    sms: async (msg, to) => console.log(`SMS to ${to}: ${msg.substring(0, 160)}`),
+    push: async (msg, to) => console.log(`Push to ${to}: ${msg}`)
+  };
+  
+  return notifiers[type] || notifiers.email;
+};
+
+// Aplicación parcial para crear notificadores especializados
+const createNotifier = (type: NotificationType) => 
+  (recipient: string) => 
+    (message: string) => 
+      notifierFactory(type)(message, recipient);
+
+// Uso
+const emailUser = createNotifier('email')('user@example.com');
+await emailUser('Welcome!');
+```
+
+### Singleton Funcional
+
+```typescript
+// Módulo con closure (naturalmente singleton)
+const ConfigModule = (() => {
+  let config: Map<string, any> | null = null;
+  
+  const initialize = (): Map<string, any> => {
+    if (!config) {
+      config = new Map([
+        ['api.url', 'https://api.example.com'],
+        ['api.timeout', 5000]
+      ]);
+    }
+    return config;
+  };
+  
+  return {
+    get: (key: string): any => initialize().get(key),
+    set: (key: string, value: any): void => initialize().set(key, value)
+  };
+})();
+
+// Memoización para singleton funcional
+const memoizedSingleton = <T>(factory: () => T): (() => T) => {
+  let instance: T | null = null;
+  return () => instance || (instance = factory());
+};
+
+const getDatabase = memoizedSingleton(() => ({
+  connect: () => console.log('Connected'),
+  query: (sql: string) => console.log(`Query: ${sql}`)
+}));
+```
+
+### Strategy Pattern Funcional
+
+```typescript
+// Estrategias como funciones
+type SortStrategy<T> = (items: T[]) => T[];
+
+const sortStrategies = {
+  alphabetical: <T extends { name: string }>(items: T[]): T[] =>
+    [...items].sort((a, b) => a.name.localeCompare(b.name)),
+    
+  numerical: <T extends { value: number }>(items: T[]): T[] =>
+    [...items].sort((a, b) => a.value - b.value),
+    
+  byDate: <T extends { date: Date }>(items: T[]): T[] =>
+    [...items].sort((a, b) => a.date.getTime() - b.date.getTime())
+};
+
+// Aplicar estrategia
+const sortWith = <T>(strategy: SortStrategy<T>) => (items: T[]): T[] =>
+  strategy(items);
+
+// Uso
+const items = [{ name: 'Z' }, { name: 'A' }];
+const sorted = sortWith(sortStrategies.alphabetical)(items);
+```
+
+### Observer Pattern Funcional
+
+```typescript
+// Event emitter funcional
+type Listener<T> = (data: T) => void;
+type Unsubscribe = () => void;
+
+const createEventEmitter = <T>() => {
+  let listeners: Listener<T>[] = [];
+  
+  return {
+    emit: (data: T): void => {
+      listeners.forEach(listener => listener(data));
+    },
+    
+    subscribe: (listener: Listener<T>): Unsubscribe => {
+      listeners = [...listeners, listener];
+      return () => {
+        listeners = listeners.filter(l => l !== listener);
+      };
+    }
+  };
+};
+
+// Uso
+const priceEmitter = createEventEmitter<number>();
+const unsubscribe = priceEmitter.subscribe(price => 
+  console.log(`Price: ${price}`)
+);
+
+priceEmitter.emit(100);
+unsubscribe();
+```
+
+### Decorator Pattern Funcional
+
+```typescript
+// Decoradores como funciones de orden superior
+type Handler = (req: Request) => Response;
+
+const withLogging = (handler: Handler): Handler => 
+  (req) => {
+    console.log(`Request: ${req.url}`);
+    const response = handler(req);
+    console.log(`Response: ${response.status}`);
+    return response;
+  };
+
+const withAuth = (handler: Handler): Handler =>
+  (req) => {
+    if (!req.headers.authorization) {
+      return { status: 401, body: 'Unauthorized' };
+    }
+    return handler(req);
+  };
+
+// Composición de decoradores
+import { pipe } from 'fp-ts/function';
+
+const handler: Handler = (req) => ({ 
+  status: 200, 
+  body: 'Success' 
+});
+
+const decoratedHandler = pipe(
+  handler,
+  withAuth,
+  withLogging
+);
+```

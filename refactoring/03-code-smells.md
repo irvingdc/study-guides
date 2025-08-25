@@ -1691,3 +1691,338 @@ declare const database: Database;
 5. **Reutilización**: Diseñar componentes para ser reutilizables
 
 La eliminación de código duplicado es una de las refactorizaciones más importantes porque mejora dramáticamente la mantenibilidad del código.
+
+---
+
+## Enfoques Funcionales para Code Smells
+
+### Long Method - Solución Funcional
+
+```typescript
+// ❌ Método largo imperativo
+function processOrder(orderData: any): void {
+  // 100+ líneas de código mezclado
+  // validación, cálculo, persistencia, notificación...
+}
+
+// ✅ Solución funcional con composición
+import { pipe } from 'fp-ts/function';
+import { chain, map } from 'fp-ts/TaskEither';
+
+const processOrder = pipe(
+  validateOrderData,
+  chain(checkInventory),
+  map(calculatePricing),
+  chain(processPayment),
+  map(createOrder),
+  chain(saveOrder),
+  chain(sendNotifications)
+);
+
+// Cada función es pequeña y pura
+const validateOrderData = (data: OrderData): TaskEither<Error, ValidatedOrder> =>
+  data.items.length > 0 
+    ? taskEither.right(data as ValidatedOrder)
+    : taskEither.left(new Error('No items'));
+
+const calculatePricing = (order: ValidatedOrder): PricedOrder => ({
+  ...order,
+  pricing: {
+    subtotal: calculateSubtotal(order.items),
+    discount: calculateDiscount(order),
+    tax: calculateTax(order),
+    total: calculateTotal(order)
+  }
+});
+
+// Funciones puras componibles
+const calculateSubtotal = (items: OrderItem[]): number =>
+  items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+const calculateDiscount = (order: ValidatedOrder): number => {
+  const discountRules = [
+    volumeDiscount,
+    loyaltyDiscount,
+    promoCodeDiscount
+  ];
+  
+  return discountRules.reduce(
+    (total, rule) => total + rule(order),
+    0
+  );
+};
+```
+
+### Duplicate Code - Solución Funcional
+
+```typescript
+// ❌ Código duplicado
+function validateEmail(email: string): boolean {
+  if (!email) return false;
+  if (!email.includes('@')) return false;
+  // más validaciones...
+}
+
+function validateUserEmail(user: User): boolean {
+  if (!user.email) return false;
+  if (!user.email.includes('@')) return false;
+  // mismas validaciones...
+}
+
+// ✅ Solución funcional con composición de predicados
+type Predicate<T> = (value: T) => boolean;
+
+const compose = <T>(...predicates: Predicate<T>[]): Predicate<T> =>
+  (value) => predicates.every(pred => pred(value));
+
+const isNotEmpty = (str: string): boolean => str.length > 0;
+const containsAt = (str: string): boolean => str.includes('@');
+const isValidLength = (str: string): boolean => str.length <= 254;
+
+const isValidEmail = compose(
+  isNotEmpty,
+  containsAt,
+  isValidLength
+);
+
+// Reutilizable con extractores
+const validateUserEmail = (user: User): boolean =>
+  isValidEmail(user.email);
+
+const validateCustomerEmail = (customer: Customer): boolean =>
+  isValidEmail(customer.contactEmail);
+```
+
+### Feature Envy - Solución Funcional
+
+```typescript
+// ❌ Función que usa datos de otro objeto excesivamente
+class OrderCalculator {
+  calculateDiscount(customer: Customer): number {
+    if (customer.loyaltyPoints > 1000 && customer.yearsSince > 2) {
+      return customer.totalPurchases * 0.1;
+    }
+    return 0;
+  }
+}
+
+// ✅ Solución funcional: funciones operan en sus datos naturales
+const calculateCustomerDiscount = (customer: Customer): number => {
+  const loyaltyMultiplier = getLoyaltyMultiplier(customer);
+  return customer.totalPurchases * loyaltyMultiplier;
+};
+
+const getLoyaltyMultiplier = (customer: Customer): number => {
+  const isLoyal = customer.loyaltyPoints > 1000 && customer.yearsSince > 2;
+  return isLoyal ? 0.1 : 0;
+};
+
+// Aún mejor: hacer configurable con currying
+const createDiscountCalculator = (config: DiscountConfig) =>
+  (customer: Customer): number => {
+    const isEligible = 
+      customer.loyaltyPoints > config.minPoints &&
+      customer.yearsSince > config.minYears;
+    
+    return isEligible 
+      ? customer.totalPurchases * config.rate
+      : 0;
+  };
+
+const standardDiscount = createDiscountCalculator({
+  minPoints: 1000,
+  minYears: 2,
+  rate: 0.1
+});
+
+const premiumDiscount = createDiscountCalculator({
+  minPoints: 5000,
+  minYears: 5,
+  rate: 0.2
+});
+```
+
+### Primitive Obsession - Solución Funcional
+
+```typescript
+// ❌ Uso excesivo de primitivos
+function createOrder(
+  customerId: string,
+  amount: number,
+  email: string,
+  phone: string
+): void {
+  // Sin validación de tipos
+}
+
+// ✅ Solución funcional con branded types y validación
+// Branded types para seguridad de tipos
+type Email = string & { readonly __brand: unique symbol };
+type PhoneNumber = string & { readonly __brand: unique symbol };
+type CustomerId = string & { readonly __brand: unique symbol };
+type Money = number & { readonly __brand: unique symbol };
+
+// Smart constructors con validación
+import { Option, some, none } from 'fp-ts/Option';
+
+const createEmail = (value: string): Option<Email> =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+    ? some(value as Email)
+    : none;
+
+const createPhoneNumber = (value: string): Option<PhoneNumber> =>
+  /^\+?[\d\s-()]+$/.test(value) && value.length >= 10
+    ? some(value as PhoneNumber)
+    : none;
+
+const createMoney = (value: number): Option<Money> =>
+  value >= 0 && Number.isFinite(value)
+    ? some(value as Money)
+    : none;
+
+// Función con tipos validados
+const createOrder = (
+  customerId: CustomerId,
+  amount: Money,
+  email: Email,
+  phone: PhoneNumber
+): Order => ({
+  customerId,
+  amount,
+  email,
+  phone,
+  createdAt: new Date()
+});
+
+// Uso seguro con validación
+import { sequenceT } from 'fp-ts/Apply';
+
+const safeCreateOrder = (
+  customerId: string,
+  amount: number,
+  email: string,
+  phone: string
+): Option<Order> =>
+  pipe(
+    sequenceT(option)(
+      some(customerId as CustomerId),
+      createMoney(amount),
+      createEmail(email),
+      createPhoneNumber(phone)
+    ),
+    map(([cId, amt, eml, phn]) => 
+      createOrder(cId, amt, eml, phn)
+    )
+  );
+```
+
+### Large Class - Solución Funcional
+
+```typescript
+// ❌ Clase grande con muchas responsabilidades
+class UserManager {
+  // autenticación, autorización, perfil, preferencias, etc.
+}
+
+// ✅ Solución funcional: módulos con funciones agrupadas
+// Módulo de autenticación
+const AuthModule = {
+  login: (credentials: Credentials): TaskEither<Error, Token> =>
+    // lógica de login
+    taskEither.right({ token: 'abc123' } as Token),
+  
+  logout: (token: Token): Task<void> =>
+    // lógica de logout
+    task.of(undefined),
+  
+  validateToken: (token: Token): boolean =>
+    // validación
+    true
+};
+
+// Módulo de perfil
+const ProfileModule = {
+  getProfile: (userId: UserId): TaskEither<Error, Profile> =>
+    // obtener perfil
+    taskEither.right({} as Profile),
+  
+  updateProfile: (userId: UserId, updates: ProfileUpdate): TaskEither<Error, Profile> =>
+    // actualizar perfil
+    taskEither.right({} as Profile)
+};
+
+// Módulo de preferencias
+const PreferencesModule = {
+  getPreferences: (userId: UserId): Task<Preferences> =>
+    // obtener preferencias
+    task.of({} as Preferences),
+  
+  updatePreferences: (userId: UserId, prefs: Preferences): Task<void> =>
+    // actualizar preferencias
+    task.of(undefined)
+};
+
+// Composición de módulos cuando sea necesario
+const getUserData = (userId: UserId) =>
+  pipe(
+    sequenceT(taskEither)(
+      ProfileModule.getProfile(userId),
+      taskEither.rightTask(PreferencesModule.getPreferences(userId))
+    ),
+    map(([profile, preferences]) => ({
+      profile,
+      preferences
+    }))
+  );
+```
+
+### Dead Code - Solución Funcional
+
+```typescript
+// ✅ En programación funcional, el dead code es más fácil de detectar
+// porque las funciones puras sin uso no tienen efectos secundarios
+
+// Tree shaking automático elimina funciones no utilizadas
+export const usedFunction = (x: number) => x * 2;
+
+// Esta función será eliminada automáticamente si no se usa
+const unusedFunction = (x: number) => x * 3;
+
+// Con módulos ES6 y bundlers modernos
+export { usedFunction }; // Solo exportar lo necesario
+```
+
+### Comentarios Excesivos - Solución Funcional
+
+```typescript
+// ❌ Comentarios porque el código no es claro
+function calc(a: number, b: number, c: number): number {
+  // Calcular el descuento basado en cantidad
+  const d = a > 100 ? 0.1 : 0;
+  // Aplicar descuento
+  const e = b * (1 - d);
+  // Agregar impuesto
+  return e * (1 + c);
+}
+
+// ✅ Código autodocumentado con funciones puras nombradas
+const calculateQuantityDiscount = (quantity: number): number =>
+  quantity > 100 ? 0.1 : 0;
+
+const applyDiscount = (price: number, discountRate: number): number =>
+  price * (1 - discountRate);
+
+const applyTax = (price: number, taxRate: number): number =>
+  price * (1 + taxRate);
+
+const calculateFinalPrice = (
+  quantity: number,
+  unitPrice: number,
+  taxRate: number
+): number =>
+  pipe(
+    calculateQuantityDiscount(quantity),
+    discount => applyDiscount(unitPrice * quantity, discount),
+    priceAfterDiscount => applyTax(priceAfterDiscount, taxRate)
+  );
+```
